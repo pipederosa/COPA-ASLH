@@ -438,3 +438,100 @@ td[title]:hover { outline: 1px dashed rgba(184,112,0,0.3); }
   padding: 1rem 1.25rem;
   margin-bottom: 1rem;
 }
+
+/* ===== COUNTDOWN BANNER ===== */
+#countdown-banner {
+  background: var(--navy);
+  border-bottom: 2px solid var(--sea-light);
+  padding: 0;
+}
+.banner-inner {
+  max-width: 1100px;
+  margin: auto;
+  padding: .6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.banner-label {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.banner-event {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.banner-countdown {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-left: auto;
+}
+.countdown-unit {
+  text-align: center;
+}
+.countdown-num {
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+  min-width: 36px;
+  display: block;
+}
+.countdown-lbl {
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.countdown-sep {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 8px;
+}
+
+/* ===== ANNUAL STANDINGS ===== */
+.annual-table {
+  width: 100%;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.annual-table th {
+  background: var(--navy);
+  color: rgba(255,255,255,0.85);
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  padding: 8px 12px;
+  text-align: center;
+}
+.annual-table th:nth-child(2) { text-align: left; }
+.annual-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  color: var(--text);
+}
+.annual-table td:nth-child(2) { text-align: left; font-weight: 500; }
+.annual-table tr:last-child td { border-bottom: none; }
+.annual-table tr:nth-child(even) td { background: rgba(232,244,248,0.25); }
+.annual-table tr:hover td { background: var(--foam); }
+.annual-pts-absent { color: var(--text-light); font-style: italic; font-size: 12px; }
