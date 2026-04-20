@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regatas Náuticas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">⛵</span>
+      <span class="logo-text">REGATAS</span>
+    </div>
+    <nav class="header-nav">
+      <button class="nav-btn active" onclick="showView('home')">Campeonatos</button>
+      <div id="auth-area">
+        <button class="nav-btn nav-admin" id="btn-login" onclick="showModal('modal-login')">Admin</button>
+        <button class="nav-btn nav-logout" id="btn-logout" onclick="logout()" style="display:none">Salir</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- ===== COUNTDOWN BANNER ===== -->
+<div id="countdown-banner" style="display:none"></div>
+
+<!-- ===== VIEWS ===== -->
+<main class="main-content">
+
+  <!-- HOME: Lista de campeonatos -->
+  <div id="view-home" class="view active">
+    <div class="view-header">
+      <div>
+        <h1 class="view-title">Campeonatos</h1>
+        <p class="view-subtitle">Seleccioná un campeonato para ver los resultados</p>
+      </div>
+      <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">
+        + Nuevo campeonato
+      </button>
+    </div>
+    <!-- Annual standings -->
+    <div id="annual-section" style="display:none;margin-bottom:2rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <h2 id="annual-title" style="font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--navy);letter-spacing:1px"></h2>
+          <p style="font-size:13px;color:var(--text-mid)">Clasificación acumulada de campeonatos</p>
+        </div>
+        <button id="btn-annual-admin" class="btn btn-sm" onclick="showAnnualAdminModal()" style="display:none">Configurar anual</button>
+      </div>
+      <div id="annual-standings"></div>
+    </div>
+
+    <div id="champ-grid" class="champ-grid">
+      <div class="loading-state">Cargando campeonatos...</div>
+    </div>
+
+    <!-- Admin: add date button per champ shown inline, dates modal trigger -->
+    <div id="home-admin-bar" style="display:none;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <button class="btn btn-sm" onclick="showAnnualAdminModal()">Configurar campeonato anual</button>
+    </div>
+  </div>
+
+  <!-- CHAMPIONSHIP: Vista de un campeonato -->
+  <div id="view-champ" class="view">
+    <div class="view-header">
+      <div>
+        <button class="back-btn" onclick="showView('home')">← Volver</button>
+        <h1 class="view-title" id="champ-title">Campeonato</h1>
+        <p class="view-subtitle" id="champ-desc"></p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="champ-admin-btns" style="display:none">
+        <button class="btn btn-sm" onclick="showEditChampModal()">Editar config.</button>
+        <button class="btn btn-sm" onclick="showDatesModal()">Fechas</button>
+        <button class="btn btn-sm" onclick="showPilotsModal()">Participantes</button>
+        <button class="btn btn-sm" onclick="showAdjustmentsModal()">Ajustes de puntos</button>
+        <button class="btn btn-sm btn-accent" onclick="showLoadRaceModal()">Cargar regata</button>
+        <button class="btn btn-sm" onclick="showTeamRaceModal()" style="border-color:rgba(232,160,32,0.5);color:#C8880A">Regata por equipos</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteCurrentChampionship()">Eliminar campeonato</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('results')">Resultados</button>
+      <button class="tab" onclick="switchTab('detail')">Por regata</button>
+      <button class="tab" onclick="switchTab('toa')">TOA</button>
+      <button class="tab" onclick="switchTab('protests')">Audiencias</button>
+    </div>
+
+    <!-- Tab: resultados generales -->
+    <div id="tab-results" class="tab-panel active">
+      <div id="results-container">
+        <div class="loading-state">Cargando resultados...</div>
+      </div>
+    </div>
+
+    <!-- Tab: detalle por regata -->
+    <div id="tab-detail" class="tab-panel">
+      <div id="detail-container">
+        <div class="loading-state">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- Tab: TOA -->
+    <div id="tab-toa" class="tab-panel">
+      <div id="toa-container">
+        <div class="loading-state">Cargando archivos...</div>
+      </div>
+    </div>
+
+    <!-- Tab: Audiencias -->
+    <div id="tab-protests" class="tab-panel">
+      <div id="protests-container">
+        <div class="loading-state">Cargando...</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Modal login -->
+<div id="modal-login" class="modal-overlay" onclick="closeModalOutside(event,'modal-login')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Acceso administrador</h2>
+      <button class="modal-close" onclick="closeModal('modal-login')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="admin@ejemplo.com">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <div id="login-error" class="error-msg" style="display:none"></div>
+      <button class="btn btn-accent w-full" onclick="login()">Ingresar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nuevo campeonato -->
+<div id="modal-champ" class="modal-overlay" onclick="closeModalOutside(event,'modal-champ')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2 id="modal-champ-title">Nuevo campeonato</h2>
+      <button class="modal-close" onclick="closeModal('modal-champ')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nombre del campeonato</label>
+        <input type="text" id="cf-name" placeholder="Ej: Copa Náutica 2026">
+      </div>
+      <div class="field">
+        <label>Descripción (opcional)</label>
+        <input type="text" id="cf-desc" placeholder="Ej: Clase Optimist — Club Náutico XYZ">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Cantidad de regatas</label>
+          <input type="number" id="cf-races" min="1" max="30" placeholder="10">
+        </div>
+        <div class="field">
+          <label>Cantidad de descartes</label>
+          <input type="number" id="cf-discards" min="0" max="10" placeholder="0" value="0" oninput="updateChampDiscardUI()">
+        </div>
+      </div>
+      <div class="row2" id="cf-d1-row">
+        <div class="field">
+          <label>1er descarte a partir de regata N°</label>
+          <input type="number" id="cf-d1" min="1" placeholder="Ej: 5">
+        </div>
+        <div id="cf-d2-wrap" style="display:none">
+          <div class="field">
+            <label>2do descarte a partir de regata N°</label>
+            <input type="number" id="cf-d2" min="1" placeholder="Ej: 9">
+          </div>
+        </div>
+      </div>
+      <div id="cf-discard-info" class="info-box" style="display:none"></div>
+      <button class="btn btn-accent w-full" onclick="saveChampionship()">Guardar campeonato</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal participantes -->
+<div id="modal-pilots" class="modal-overlay" onclick="closeModalOutside(event,'modal-pilots')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Participantes</h2>
+      <button class="modal-close" onclick="closeModal('modal-pilots')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:1rem">
+        <input type="text" id="pilot-name-input" placeholder="Nombre del participante" style="flex:1" onkeydown="if(event.key==='Enter')addPilot()">
+        <input type="text" id="pilot-sail-input" placeholder="Vela N°" style="width:100px">
+        <button class="btn btn-accent" onclick="addPilot()">+ Agregar</button>
+      </div>
+      <div id="pilots-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cargar regata -->
+<div id="modal-race" class="modal-overlay" onclick="closeModalOutside(event,'modal-race')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Cargar resultados de regata</h2>
+      <button class="modal-close" onclick="closeModal('modal-race')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="row2">
+        <div class="field">
+          <label>Regata N°</label>
+          <select id="race-num-select" onchange="onRaceSelectChange()"></select>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:1px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="race-double"> Regata doble (×2)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="race-nodiscard"> No descartable
+          </label>
+        </div>
+      </div>
+      <div id="race-alert" class="info-box" style="display:none"></div>
+      <div class="race-form-header">
+        <span>Pos</span><span>Participante</span><span>Penalización</span>
+      </div>
+      <div id="race-form-body"></div>
+      <button class="btn btn-accent w-full" onclick="saveRaceResults()" style="margin-top:1rem">Guardar resultados</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal regata por equipos -->
+<div id="modal-team" class="modal-overlay" onclick="closeModalOutside(event,'modal-team')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Regata por equipos</h2>
+      <button class="modal-close" onclick="closeModal('modal-team')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="row2">
+        <div class="field">
+          <label>Regata N°</label>
+          <select id="team-race-num-select" onchange="onTeamRaceSelectChange()"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end;padding-bottom:2px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="team-race-double"> Regata doble (x2)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="team-race-nodiscard" checked> No descartable
+          </label>
+        </div>
+      </div>
+      <div class="info-box">Equipos por ranking actual: 1A, 2B, 3B, 4A, 5A, 6B... · Se suman los puestos de los primeros 4 de cada equipo. Menor suma gana (+1pt). Equipo perdedor +3pts.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#E8F4F8;border-radius:6px;padding:.75rem;border:1px solid rgba(26,107,138,0.2)">
+          <div style="font-size:12px;font-weight:600;color:#1A6B8A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Equipo A</div>
+          <div id="team-a-list"></div>
+        </div>
+        <div style="background:#FEF9EC;border-radius:6px;padding:.75rem;border:1px solid rgba(232,160,32,0.3)">
+          <div style="font-size:12px;font-weight:600;color:#C8880A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Equipo B</div>
+          <div id="team-b-list"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:500;color:#4A6080;margin-bottom:.5rem">Orden de llegada de cada participante:</div>
+        <div style="display:grid;grid-template-columns:28px 1fr 80px;gap:8px;padding:6px 0;font-size:11px;font-weight:500;color:#7A9AB8;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid rgba(26,107,138,0.15)">
+          <span></span><span>Participante</span><span>Posicion</span>
+        </div>
+        <div id="team-race-form-body"></div>
+      </div>
+      <div id="team-result-preview" style="display:none"></div>
+      <button class="btn btn-accent w-full" onclick="saveTeamRaceResults()">Guardar regata por equipos</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Modal ajustes de puntos -->
+<div id="modal-adjustments" class="modal-overlay" onclick="closeModalOutside(event,'modal-adjustments')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Ajustes de puntos</h2>
+      <button class="modal-close" onclick="closeModal('modal-adjustments')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box" style="margin-bottom:.5rem">Usá valores positivos para sumar puntos (penalización) y negativos para restar (beneficio).</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 80px 1fr;gap:8px;align-items:flex-end;margin-bottom:.75rem">
+        <div class="field" style="margin:0">
+          <label>Participante</label>
+          <select id="adj-pilot"></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Puntos (+/-)</label>
+          <input type="number" id="adj-points" placeholder="Ej: 3 o -2">
+        </div>
+        <div></div>
+        <div class="field" style="margin:0">
+          <label>Motivo</label>
+          <input type="text" id="adj-reason" placeholder="Ej: Penalización reglamento 42">
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="addAdjustment()">+ Agregar ajuste</button>
+      <div id="adj-list" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal nueva audiencia -->
+<div id="modal-protest-new" class="modal-overlay" onclick="closeModalOutside(event,'modal-protest-new')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Pedido de audiencia</h2>
+      <button class="modal-close" onclick="closeModal('modal-protest-new')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box">Cualquier competidor puede presentar un pedido de audiencia a la Comisión de Regatas (CR). Una vez enviado, solo la CR puede editarlo.</div>
+      <div class="row2">
+        <div class="field">
+          <label>Protestante</label>
+          <select id="prot-protestor"></select>
+        </div>
+        <div class="field">
+          <label>Protestado</label>
+          <select id="prot-protestee"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Descripción de los hechos</label>
+        <textarea id="prot-description" rows="5" placeholder="Describí detalladamente los hechos que motivan esta audiencia, incluyendo regatas involucradas, maniobras, testigos, etc." style="width:100%;padding:8px 10px;border:1px solid var(--border-mid);border-radius:var(--radius);font-family:var(--font-body);font-size:14px;resize:vertical"></textarea>
+      </div>
+      <button class="btn btn-accent w-full" onclick="submitProtest()">Enviar pedido de audiencia</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar audiencia (admin) -->
+<div id="modal-protest-edit" class="modal-overlay" onclick="closeModalOutside(event,'modal-protest-edit')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Resolución de audiencia</h2>
+      <button class="modal-close" onclick="closeModal('modal-protest-edit')">x</button>
+    </div>
+    <div class="modal-body">
+      <div id="protest-edit-summary" style="background:var(--foam);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:.5rem;font-size:13px"></div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="protest-edit-status">
+          <option value="PENDIENTE">Pendiente de revisión</option>
+          <option value="DESESTIMADO">Desestimado</option>
+          <option value="RESUELTO">Resuelto</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Respuesta de la CR</label>
+        <textarea id="protest-edit-response" rows="4" placeholder="Descripción de la respuesta de la Comisión de Regatas..." style="width:100%;padding:8px 10px;border:1px solid var(--border-mid);border-radius:var(--radius);font-family:var(--font-body);font-size:14px;resize:vertical"></textarea>
+      </div>
+      <div class="field">
+        <label>Resultado / penalización</label>
+        <textarea id="protest-edit-result" rows="3" placeholder="Ej: Juan García recibe penalización de 2 puntos. / Se desestima por falta de pruebas." style="width:100%;padding:8px 10px;border:1px solid var(--border-mid);border-radius:var(--radius);font-family:var(--font-body);font-size:14px;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-accent w-full" onclick="saveProtestEdit()">Guardar resolución</button>
+        <button class="btn btn-danger" onclick="deleteProtest()" style="white-space:nowrap">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal fechas del campeonato -->
+<div id="modal-dates" class="modal-overlay" onclick="closeModalOutside(event,'modal-dates')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Próximas fechas</h2>
+      <button class="modal-close" onclick="closeModal('modal-dates')">x</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:flex-end;margin-bottom:.75rem">
+        <div class="field" style="margin:0">
+          <label>Nombre del evento</label>
+          <input type="text" id="date-name" placeholder="Ej: Regata 5 - Largada">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Fecha y hora</label>
+          <input type="datetime-local" id="date-datetime">
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="addChampDate()">+ Agregar fecha</button>
+      <div id="dates-list" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal configurar campeonato anual -->
+<div id="modal-annual" class="modal-overlay" onclick="closeModalOutside(event,'modal-annual')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Campeonato anual</h2>
+      <button class="modal-close" onclick="closeModal('modal-annual')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Título del campeonato anual</label>
+        <input type="text" id="annual-title-input" placeholder="Ej: Copa Anual 2026">
+      </div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-mid);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Campeonatos incluidos</div>
+      <div id="annual-champ-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:.75rem"></div>
+      <div class="info-box" style="font-size:12px">Los participantes que no estén en algún campeonato reciben como puntaje el total de inscriptos únicos en todos los campeonatos seleccionados.</div>
+      <button class="btn btn-accent w-full" onclick="saveAnnualConfig()">Guardar configuración</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
