@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   loadChampionships();
+  loadHomeExtras();
 });
 
 function handleSession(session) {
@@ -30,6 +31,8 @@ function handleSession(session) {
   document.getElementById('btn-logout').style.display = '';
   document.getElementById('btn-new-champ').style.display = '';
   document.getElementById('champ-admin-btns').style.display = 'flex';
+  document.getElementById('btn-annual-admin').style.display = '';
+  document.getElementById('home-admin-bar').style.display = '';
 }
 
 function handleLogout() {
@@ -38,6 +41,8 @@ function handleLogout() {
   document.getElementById('btn-logout').style.display = 'none';
   document.getElementById('btn-new-champ').style.display = 'none';
   document.getElementById('champ-admin-btns').style.display = 'none';
+  document.getElementById('btn-annual-admin').style.display = 'none';
+  document.getElementById('home-admin-bar').style.display = 'none';
 }
 
 // ===== AUTH =====
@@ -62,7 +67,7 @@ async function logout() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
-  if (name === 'home') loadChampionships();
+  if (name === 'home') { loadChampionships(); loadHomeExtras(); }
 }
 
 function switchTab(tab) {
@@ -1478,4 +1483,308 @@ async function deleteProtest() {
   closeModal('modal-protest-edit');
   showToast('Pedido eliminado', 'success');
   renderProtestsTab();
+}
+
+// ===== HOME EXTRAS: COUNTDOWN + ANNUAL =====
+
+let countdownInterval = null;
+
+async function loadHomeExtras() {
+  await Promise.all([loadCountdownBanner(), loadAnnualStandings()]);
+}
+
+// ===== COUNTDOWN BANNER =====
+async function loadCountdownBanner() {
+  const banner = document.getElementById('countdown-banner');
+  // Fetch all upcoming dates across all championships
+  const { data: dates } = await db.from('championship_dates')
+    .select('*, championships(name)')
+    .gte('event_date', new Date().toISOString())
+    .order('event_date', { ascending: true })
+    .limit(1);
+
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+
+  if (!dates || !dates.length) { banner.style.display = 'none'; return; }
+
+  const next = dates[0];
+  const targetDate = new Date(next.event_date);
+  const champName = next.championships?.name || '';
+
+  function updateBanner() {
+    const now = new Date();
+    const diff = targetDate - now;
+    if (diff <= 0) {
+      banner.style.display = 'none';
+      if (countdownInterval) clearInterval(countdownInterval);
+      return;
+    }
+    const days = Math.floor(diff / (1000*60*60*24));
+    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const mins = Math.floor((diff % (1000*60*60)) / (1000*60));
+
+    banner.style.display = '';
+    banner.innerHTML = `<div class="banner-inner">
+      <span class="banner-label">Próxima edición</span>
+      <span class="banner-event">${esc(next.name)}${champName ? ' · ' + esc(champName) : ''}</span>
+      <div class="banner-countdown">
+        <div class="countdown-unit"><span class="countdown-num">${String(days).padStart(2,'0')}</span><span class="countdown-lbl">días</span></div>
+        <span class="countdown-sep">:</span>
+        <div class="countdown-unit"><span class="countdown-num">${String(hours).padStart(2,'0')}</span><span class="countdown-lbl">horas</span></div>
+        <span class="countdown-sep">:</span>
+        <div class="countdown-unit"><span class="countdown-num">${String(mins).padStart(2,'0')}</span><span class="countdown-lbl">min</span></div>
+      </div>
+    </div>`;
+  }
+
+  updateBanner();
+  countdownInterval = setInterval(updateBanner, 30000);
+}
+
+// ===== DATES MANAGEMENT =====
+async function showDatesModal() {
+  document.getElementById('date-name').value = '';
+  document.getElementById('date-datetime').value = '';
+  await renderDatesList();
+  showModal('modal-dates');
+}
+
+async function renderDatesList() {
+  const el = document.getElementById('dates-list');
+  const { data: dates } = await db.from('championship_dates')
+    .select('*').eq('championship_id', currentChampId)
+    .order('event_date', { ascending: true });
+
+  if (!dates || !dates.length) {
+    el.innerHTML = '<div style="color:var(--text-light);font-size:13px">Sin fechas cargadas.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Fechas cargadas</div>
+    ${dates.map(d => {
+      const dt = new Date(d.event_date);
+      const isPast = dt < new Date();
+      const fmt = dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' +
+        dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="flex:1;font-weight:500;color:${isPast?'var(--text-light)':'var(--text)'}">${esc(d.name)}</span>
+        <span style="color:${isPast?'var(--text-light)':'var(--sea)'};">${fmt}</span>
+        ${isPast?'<span style="font-size:11px;color:var(--text-light)">(pasada)</span>':''}
+        <button class="btn btn-sm btn-danger" onclick="deleteChampDate('${d.id}')">x</button>
+      </div>`;
+    }).join('')}`;
+}
+
+async function addChampDate() {
+  const name = document.getElementById('date-name').value.trim();
+  const dt = document.getElementById('date-datetime').value;
+  if (!name || !dt) { showToast('Completá nombre y fecha', 'error'); return; }
+  const { error } = await db.from('championship_dates').insert({
+    championship_id: currentChampId, name, event_date: new Date(dt).toISOString()
+  });
+  if (error) { showToast('Error al guardar fecha', 'error'); return; }
+  document.getElementById('date-name').value = '';
+  document.getElementById('date-datetime').value = '';
+  await renderDatesList();
+  loadCountdownBanner();
+  showToast('Fecha agregada', 'success');
+}
+
+async function deleteChampDate(id) {
+  if (!confirm('¿Eliminar esta fecha?')) return;
+  await db.from('championship_dates').delete().eq('id', id);
+  await renderDatesList();
+  loadCountdownBanner();
+}
+
+// ===== ANNUAL CHAMPIONSHIP =====
+
+async function loadAnnualStandings() {
+  const section = document.getElementById('annual-section');
+  // Get active annual config
+  const { data: configs } = await db.from('annual_config').select('*').eq('active', true).limit(1);
+  if (!configs || !configs.length) { section.style.display = 'none'; return; }
+
+  const annual = configs[0];
+  document.getElementById('annual-title').textContent = annual.title;
+
+  // Get championships in this annual
+  const { data: annualChamps } = await db.from('annual_championships')
+    .select('championship_id').eq('annual_id', annual.id);
+  if (!annualChamps || !annualChamps.length) { section.style.display = 'none'; return; }
+
+  const champIds = annualChamps.map(a => a.championship_id);
+
+  // Fetch all data for included championships
+  const { data: allChamps } = await db.from('championships').select('*').in('id', champIds);
+  if (!allChamps || !allChamps.length) { section.style.display = 'none'; return; }
+
+  // Compute standings for each championship
+  const champStandings = await Promise.all(allChamps.map(async c => {
+    const [pilotsRes, racesRes, resultsRes, adjRes] = await Promise.all([
+      db.from('pilots').select('id,name').eq('championship_id', c.id),
+      db.from('races').select('*').eq('championship_id', c.id),
+      db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', c.id),
+      db.from('point_adjustments').select('*').eq('championship_id', c.id)
+    ]);
+    const pilots = pilotsRes.data || [];
+    const races = racesRes.data || [];
+    const results = resultsRes.data || [];
+    const adjs = adjRes.data || [];
+    if (!pilots.length || !races.length) return { champ: c, pilots, ranked: [] };
+
+    const maxRace = Math.max(...races.map(r => r.race_number));
+    const activeD = c.total_discards >= 2 && maxRace >= c.discard2_from ? 2
+      : c.total_discards >= 1 && maxRace >= c.discard1_from ? 1 : 0;
+
+    const scores = pilots.map(pilot => {
+      const pts = races.map(race => {
+        const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+        return res ? { race, pts: res.points } : null;
+      }).filter(Boolean);
+      const discardable = pts.filter(p => !p.race.no_discard);
+      let discarded = [];
+      if (activeD > 0 && discardable.length) {
+        [...discardable].sort((a,b)=>(b.race.is_double?b.pts*2:b.pts)-(a.race.is_double?a.pts*2:a.pts))
+          .slice(0, activeD).forEach(p => discarded.push(p.race.id));
+      }
+      const raceNet = pts.filter(p=>!discarded.includes(p.race.id))
+        .reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+      const adjTotal = adjs.filter(a=>a.pilot_id===pilot.id).reduce((a,adj)=>a+adj.points,0);
+      return { name: pilot.name, net: raceNet + adjTotal };
+    }).sort((a,b)=>a.net-b.net);
+
+    // Assign finish positions (1-based)
+    const ranked = scores.map((s, i) => ({ ...s, position: i + 1 }));
+    return { champ: c, pilots, ranked };
+  }));
+
+  // Collect all unique pilot names across all included championships
+  const allPilotNames = new Set();
+  champStandings.forEach(cs => cs.pilots.forEach(p => allPilotNames.add(p.name)));
+  const totalUniquePilots = allPilotNames.size;
+
+  // Penalty for not participating = totalUniquePilots
+  const absentPenalty = totalUniquePilots;
+
+  // Build annual scores per pilot name
+  const annualScores = {};
+  allPilotNames.forEach(name => {
+    annualScores[name] = { name, total: 0, perChamp: {} };
+    champStandings.forEach(cs => {
+      const entry = cs.ranked.find(r => r.name === name);
+      if (entry) {
+        annualScores[name].total += entry.position;
+        annualScores[name].perChamp[cs.champ.id] = { pos: entry.position, absent: false };
+      } else if (cs.ranked.length > 0) {
+        // Only penalize if that champ has results
+        annualScores[name].total += absentPenalty;
+        annualScores[name].perChamp[cs.champ.id] = { pos: absentPenalty, absent: true };
+      } else {
+        annualScores[name].perChamp[cs.champ.id] = { pos: null, absent: false };
+      }
+    });
+  });
+
+  const annualRanked = Object.values(annualScores)
+    .filter(p => champStandings.some(cs => cs.ranked.find(r => r.name === p.name)))
+    .sort((a,b) => a.total - b.total);
+
+  if (!annualRanked.length) { section.style.display = 'none'; return; }
+
+  const medals = ['🥇','🥈','🥉'];
+  const champHeaders = allChamps.map(c =>
+    `<th title="${esc(c.name)}">${esc(c.name.length > 12 ? c.name.slice(0,12)+'…' : c.name)}</th>`
+  ).join('');
+
+  const rows = annualRanked.map((p, i) => {
+    const pos = i+1;
+    const posLabel = medals[i] || `${pos}°`;
+    const posClass = pos===1?'pos-1':pos===2?'pos-2':pos===3?'pos-3':'';
+    const champCells = allChamps.map(c => {
+      const entry = p.perChamp[c.id];
+      if (!entry || entry.pos === null) return `<td style="color:var(--text-light)">—</td>`;
+      if (entry.absent) return `<td class="annual-pts-absent" title="No participó — penalidad ${absentPenalty}">${absentPenalty}*</td>`;
+      return `<td>${entry.pos}°</td>`;
+    }).join('');
+    return `<tr>
+      <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
+      <td>${esc(p.name)}</td>
+      ${champCells}
+      <td style="font-weight:600;color:var(--sea)">${p.total}</td>
+    </tr>`;
+  }).join('');
+
+  const table = `
+    <div style="overflow-x:auto">
+      <table class="annual-table">
+        <thead><tr>
+          <th>Pos</th><th>Participante</th>
+          ${champHeaders}
+          <th>Total</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
+      * No participó — penalidad: ${absentPenalty} (total inscriptos únicos)
+    </div>`;
+
+  document.getElementById('annual-standings').innerHTML = table;
+  section.style.display = '';
+}
+
+// ===== ANNUAL ADMIN MODAL =====
+async function showAnnualAdminModal() {
+  const { data: configs } = await db.from('annual_config').select('*').eq('active', true).limit(1);
+  const existing = configs && configs.length ? configs[0] : null;
+
+  document.getElementById('annual-title-input').value = existing ? existing.title : 'Campeonato Anual';
+
+  // Get all championships
+  const { data: allChamps } = await db.from('championships').select('id,name').order('created_at', {ascending:false});
+
+  // Get currently selected championship IDs
+  let selectedIds = new Set();
+  if (existing) {
+    const { data: ac } = await db.from('annual_championships').select('championship_id').eq('annual_id', existing.id);
+    if (ac) ac.forEach(a => selectedIds.add(a.championship_id));
+  }
+
+  document.getElementById('annual-champ-list').innerHTML = (allChamps||[]).map(c => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:4px 0">
+      <input type="checkbox" value="${c.id}" ${selectedIds.has(c.id)?'checked':''}>
+      ${esc(c.name)}
+    </label>`).join('');
+
+  window._annualExistingId = existing ? existing.id : null;
+  showModal('modal-annual');
+}
+
+async function saveAnnualConfig() {
+  const title = document.getElementById('annual-title-input').value.trim();
+  if (!title) { showToast('Ingresá un título', 'error'); return; }
+
+  const checked = [...document.querySelectorAll('#annual-champ-list input[type=checkbox]:checked')]
+    .map(cb => cb.value);
+
+  let annualId = window._annualExistingId;
+
+  if (annualId) {
+    await db.from('annual_config').update({ title }).eq('id', annualId);
+    await db.from('annual_championships').delete().eq('annual_id', annualId);
+  } else {
+    const { data } = await db.from('annual_config').insert({ title, active: true }).select().single();
+    annualId = data.id;
+  }
+
+  if (checked.length) {
+    await db.from('annual_championships').insert(
+      checked.map(cid => ({ annual_id: annualId, championship_id: cid }))
+    );
+  }
+
+  closeModal('modal-annual');
+  showToast('Campeonato anual guardado', 'success');
+  loadAnnualStandings();
 }
