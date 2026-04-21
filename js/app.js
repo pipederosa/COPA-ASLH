@@ -1526,8 +1526,8 @@ async function loadCountdownBanner() {
 
     banner.style.display = '';
     banner.innerHTML = `
-      <div class="banner-top-strip">
-        <div class="banner-top-inner">
+      <div class="banner-main-strip">
+        <div class="banner-main-inner">
           <span class="banner-round-tag">Próxima edición</span>
           <span class="banner-event-name">${esc(next.name)}</span>
           ${champName ? `<span class="banner-champ-name">· ${esc(champName)}</span>` : ''}
