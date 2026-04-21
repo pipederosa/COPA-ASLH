@@ -60,10 +60,7 @@
       <div class="loading-state">Cargando campeonatos...</div>
     </div>
 
-    <!-- Admin: add date button per champ shown inline, dates modal trigger -->
-    <div id="home-admin-bar" style="display:none;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <button class="btn btn-sm" onclick="showAnnualAdminModal()">Configurar campeonato anual</button>
-    </div>
+
   </div>
 
   <!-- CHAMPIONSHIP: Vista de un campeonato -->
@@ -74,7 +71,7 @@
         <h1 class="view-title" id="champ-title">Campeonato</h1>
         <p class="view-subtitle" id="champ-desc"></p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="champ-admin-btns" style="display:none">
+      <div style="display:none;gap:8px;align-items:center;flex-wrap:wrap" id="champ-admin-btns">
         <button class="btn btn-sm" onclick="showEditChampModal()">Editar config.</button>
         <button class="btn btn-sm" onclick="showDatesModal()">Fechas</button>
         <button class="btn btn-sm" onclick="showPilotsModal()">Participantes</button>
