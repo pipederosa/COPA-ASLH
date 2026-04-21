@@ -33,18 +33,7 @@
 <!-- ===== VIEWS ===== -->
 <main class="main-content">
 
-  <!-- HOME: Lista de campeonatos -->
-  <div id="view-home" class="view active">
-    <div class="view-header">
-      <div>
-        <h1 class="view-title">Campeonatos</h1>
-        <p class="view-subtitle">Seleccioná un campeonato para ver los resultados</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="btn-manage-dates" class="btn btn-sm" onclick="showManageDatesModal()" style="display:none">Gestionar fechas</button>
-        <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">+ Nuevo campeonato</button>
-      </div>
-    </div>
+
     <!-- Annual standings -->
     <div id="annual-section" style="display:none;margin-bottom:2rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
@@ -57,6 +46,18 @@
       <div id="annual-standings"></div>
     </div>
 
+  <!-- HOME: Lista de campeonatos -->
+  <div id="view-home" class="view active">
+    <div class="view-header">
+      <div>
+        <h1 class="view-title">Campeonatos</h1>
+        <p class="view-subtitle">Seleccioná un campeonato para ver los resultados</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btn-manage-dates" class="btn btn-sm" onclick="showManageDatesModal()" style="display:none">Gestionar fechas</button>
+        <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">+ Nuevo campeonato</button>
+      </div>
+    </div>
     <div id="champ-grid" class="champ-grid">
       <div class="loading-state">Cargando campeonatos...</div>
     </div>
