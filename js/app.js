@@ -32,6 +32,7 @@ function handleSession(session) {
   document.getElementById('btn-new-champ').style.display = '';
   document.getElementById('champ-admin-btns').style.display = 'flex';
   document.getElementById('btn-annual-admin').style.display = '';
+  document.getElementById('btn-manage-dates').style.display = '';
 }
 
 function handleLogout() {
@@ -41,6 +42,7 @@ function handleLogout() {
   document.getElementById('btn-new-champ').style.display = 'none';
   document.getElementById('champ-admin-btns').style.display = 'none';
   document.getElementById('btn-annual-admin').style.display = 'none';
+  document.getElementById('btn-manage-dates').style.display = 'none';
 }
 
 // ===== AUTH =====
@@ -1520,23 +1522,43 @@ async function loadCountdownBanner() {
     const days = Math.floor(diff / (1000*60*60*24));
     const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
     const mins = Math.floor((diff % (1000*60*60)) / (1000*60));
+    const secs = Math.floor((diff % (1000*60)) / 1000);
 
     banner.style.display = '';
-    banner.innerHTML = `<div class="banner-inner">
-      <span class="banner-label">Próxima edición</span>
-      <span class="banner-event">${esc(next.name)}${champName ? ' · ' + esc(champName) : ''}</span>
-      <div class="banner-countdown">
-        <div class="countdown-unit"><span class="countdown-num">${String(days).padStart(2,'0')}</span><span class="countdown-lbl">días</span></div>
-        <span class="countdown-sep">:</span>
-        <div class="countdown-unit"><span class="countdown-num">${String(hours).padStart(2,'0')}</span><span class="countdown-lbl">horas</span></div>
-        <span class="countdown-sep">:</span>
-        <div class="countdown-unit"><span class="countdown-num">${String(mins).padStart(2,'0')}</span><span class="countdown-lbl">min</span></div>
+    banner.innerHTML = `
+      <div class="banner-top-strip">
+        <div class="banner-top-inner">
+          <span class="banner-round-tag">Próxima edición</span>
+          <span class="banner-event-name">${esc(next.name)}</span>
+          ${champName ? `<span class="banner-champ-name">· ${esc(champName)}</span>` : ''}
+        </div>
       </div>
-    </div>`;
+      <div class="banner-main-inner">
+        <span class="banner-countdown-label">Cuenta regresiva</span>
+        <div class="banner-countdown-divider"></div>
+        <div class="banner-countdown">
+          <div class="countdown-block">
+            <span class="countdown-lbl">Días</span>
+            <span class="countdown-num">${String(days).padStart(2,'0')}</span>
+          </div>
+          <div class="countdown-block">
+            <span class="countdown-lbl">Horas</span>
+            <span class="countdown-num">${String(hours).padStart(2,'0')}</span>
+          </div>
+          <div class="countdown-block">
+            <span class="countdown-lbl">Minutos</span>
+            <span class="countdown-num">${String(mins).padStart(2,'0')}</span>
+          </div>
+          <div class="countdown-block">
+            <span class="countdown-lbl">Segundos</span>
+            <span class="countdown-num">${String(secs).padStart(2,'0')}</span>
+          </div>
+        </div>
+      </div>`;
   }
 
   updateBanner();
-  countdownInterval = setInterval(updateBanner, 30000);
+  countdownInterval = setInterval(updateBanner, 1000);
 }
 
 // ===== DATES MANAGEMENT =====
@@ -1785,4 +1807,112 @@ async function saveAnnualConfig() {
   closeModal('modal-annual');
   showToast('Campeonato anual guardado', 'success');
   loadAnnualStandings();
+}
+
+// ===== GLOBAL DATES MANAGEMENT (home screen) =====
+
+async function showManageDatesModal() {
+  // Populate championship dropdown
+  const { data: champs } = await db.from('championships').select('id,name').order('created_at', { ascending: false });
+  const sel = document.getElementById('gd-champ-select');
+  sel.innerHTML = '<option value="">— Sin campeonato vinculado / Campeonato futuro —</option>';
+  (champs || []).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  document.getElementById('gd-name').value = '';
+  document.getElementById('gd-datetime').value = '';
+  document.getElementById('gd-champ-name-wrap').style.display = 'none';
+  document.getElementById('gd-champ-name').value = '';
+  await renderGlobalDatesList();
+  showModal('modal-manage-dates');
+}
+
+function onGdChampChange() {
+  const val = document.getElementById('gd-champ-select').value;
+  // Show free-text name field only when no existing champ selected
+  document.getElementById('gd-champ-name-wrap').style.display = val ? 'none' : '';
+}
+
+async function addGlobalDate() {
+  const name = document.getElementById('gd-name').value.trim();
+  const dt = document.getElementById('gd-datetime').value;
+  const champId = document.getElementById('gd-champ-select').value || null;
+  const champName = document.getElementById('gd-champ-name').value.trim() || null;
+
+  if (!name) { showToast('Ingresá un nombre para el evento', 'error'); return; }
+  if (!dt) { showToast('Ingresá la fecha y hora', 'error'); return; }
+
+  const payload = {
+    name,
+    event_date: new Date(dt).toISOString(),
+    championship_id: champId || null,
+    label: !champId ? champName : null
+  };
+
+  // championship_id is NOT NULL in schema — if no champ, we need to handle it
+  // Use a workaround: store label in name field with prefix if no champId
+  if (!champId) {
+    // Insert without championship_id — requires schema to allow null
+    const { error } = await db.from('championship_dates').insert(payload);
+    if (error) {
+      // If null championship_id not allowed, show helpful message
+      showToast('Error: necesitás seleccionar un campeonato existente, o crear uno primero', 'error');
+      return;
+    }
+  } else {
+    const { error } = await db.from('championship_dates').insert(payload);
+    if (error) { showToast('Error al guardar fecha', 'error'); return; }
+  }
+
+  document.getElementById('gd-name').value = '';
+  document.getElementById('gd-datetime').value = '';
+  document.getElementById('gd-champ-name').value = '';
+  await renderGlobalDatesList();
+  loadCountdownBanner();
+  showToast('Fecha agregada', 'success');
+}
+
+async function renderGlobalDatesList() {
+  const el = document.getElementById('global-dates-list');
+  el.innerHTML = '<div style="color:var(--text-light);font-size:13px">Cargando...</div>';
+
+  const { data: dates } = await db.from('championship_dates')
+    .select('*, championships(name)')
+    .order('event_date', { ascending: true });
+
+  if (!dates || !dates.length) {
+    el.innerHTML = '<div style="color:var(--text-light);font-size:13px;padding:.5rem 0">No hay fechas cargadas aún.</div>';
+    return;
+  }
+
+  const now = new Date();
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Todas las fechas</div>
+    ${dates.map(d => {
+      const dt = new Date(d.event_date);
+      const isPast = dt < now;
+      const fmt = dt.toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' +
+        dt.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+      const champLabel = d.championships?.name || d.label || '—';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px">
+          <div style="font-weight:500;color:${isPast?'var(--text-light)':'var(--text)'}">${esc(d.name)}</div>
+          <div style="font-size:11px;color:var(--text-light)">${esc(champLabel)}</div>
+        </div>
+        <span style="color:${isPast?'var(--text-light)':'var(--sea)'};white-space:nowrap">${fmt}</span>
+        ${isPast ? '<span style="font-size:11px;color:var(--text-light)">(pasada)</span>' : ''}
+        <button class="btn btn-sm btn-danger" onclick="deleteGlobalDate('${d.id}')">Eliminar</button>
+      </div>`;
+    }).join('')}`;
+}
+
+async function deleteGlobalDate(id) {
+  if (!confirm('¿Eliminar esta fecha?')) return;
+  await db.from('championship_dates').delete().eq('id', id);
+  await renderGlobalDatesList();
+  loadCountdownBanner();
+  showToast('Fecha eliminada', 'success');
 }
