@@ -32,7 +32,6 @@ function handleSession(session) {
   document.getElementById('btn-new-champ').style.display = '';
   document.getElementById('champ-admin-btns').style.display = 'flex';
   document.getElementById('btn-annual-admin').style.display = '';
-  document.getElementById('home-admin-bar').style.display = '';
 }
 
 function handleLogout() {
@@ -42,7 +41,6 @@ function handleLogout() {
   document.getElementById('btn-new-champ').style.display = 'none';
   document.getElementById('champ-admin-btns').style.display = 'none';
   document.getElementById('btn-annual-admin').style.display = 'none';
-  document.getElementById('home-admin-bar').style.display = 'none';
 }
 
 // ===== AUTH =====
