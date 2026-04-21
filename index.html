@@ -40,9 +40,10 @@
         <h1 class="view-title">Campeonatos</h1>
         <p class="view-subtitle">Seleccioná un campeonato para ver los resultados</p>
       </div>
-      <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">
-        + Nuevo campeonato
-      </button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btn-manage-dates" class="btn btn-sm" onclick="showManageDatesModal()" style="display:none">Gestionar fechas</button>
+        <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">+ Nuevo campeonato</button>
+      </div>
     </div>
     <!-- Annual standings -->
     <div id="annual-section" style="display:none;margin-bottom:2rem">
@@ -420,6 +421,42 @@
       <div id="annual-champ-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:.75rem"></div>
       <div class="info-box" style="font-size:12px">Los participantes que no estén en algún campeonato reciben como puntaje el total de inscriptos únicos en todos los campeonatos seleccionados.</div>
       <button class="btn btn-accent w-full" onclick="saveAnnualConfig()">Guardar configuración</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal gestionar fechas (pantalla principal) -->
+<div id="modal-manage-dates" class="modal-overlay" onclick="closeModalOutside(event,'modal-manage-dates')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Gestionar próximas fechas</h2>
+      <button class="modal-close" onclick="closeModal('modal-manage-dates')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box" style="margin-bottom:.75rem">Podés agregar fechas para campeonatos existentes o escribir el nombre de uno futuro que aún no está creado.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field" style="margin:0">
+          <label>Nombre del evento</label>
+          <input type="text" id="gd-name" placeholder="Ej: Copa Amigos 2da edición">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Fecha y hora</label>
+          <input type="datetime-local" id="gd-datetime">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:.75rem">
+        <label>Campeonato (existente o futuro)</label>
+        <div style="display:flex;gap:8px">
+          <select id="gd-champ-select" style="flex:1" onchange="onGdChampChange()">
+            <option value="">— Sin campeonato vinculado / Campeonato futuro —</option>
+          </select>
+        </div>
+        <div id="gd-champ-name-wrap" style="display:none;margin-top:6px">
+          <input type="text" id="gd-champ-name" placeholder="Nombre del campeonato futuro (solo referencia)">
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="addGlobalDate()">+ Agregar fecha</button>
+      <div id="global-dates-list" style="margin-top:1rem"></div>
     </div>
   </div>
 </div>
