@@ -1524,18 +1524,17 @@ async function loadCountdownBanner() {
     const mins = Math.floor((diff % (1000*60*60)) / (1000*60));
     const secs = Math.floor((diff % (1000*60)) / 1000);
 
-    banner.style.display = '';
+  banner.style.display = '';
     banner.innerHTML = `
-      <div class="banner-main-strip">
-        <div class="banner-main-inner">
-          <span class="banner-round-tag">Próxima edición</span>
-          <span class="banner-event-name">${esc(next.name)}</span>
-          ${champName ? `<span class="banner-champ-name">· ${esc(champName)}</span>` : ''}
-        </div>
-      </div>
       <div class="banner-main-inner">
-        <span class="banner-countdown-label">Cuenta regresiva</span>
+        <span class="banner-round-tag">Próxima edición</span>
         <div class="banner-countdown-divider"></div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <span class="banner-event-name">${esc(next.name)}</span>
+          <span style="font-size:11px;color:rgba(255,255,255,0.4)">${new Date(next.event_date).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</span>
+        </div>
+        <div class="banner-countdown-divider" style="margin-left:auto"></div>
+        <span class="banner-countdown-label">Cuenta regresiva</span>
         <div class="banner-countdown">
           <div class="countdown-block">
             <span class="countdown-lbl">Días</span>
@@ -1555,7 +1554,6 @@ async function loadCountdownBanner() {
           </div>
         </div>
       </div>`;
-  }
 
   updateBanner();
   countdownInterval = setInterval(updateBanner, 1000);
