@@ -483,11 +483,12 @@ td[title]:hover { outline: 1px dashed rgba(184,112,0,0.3); }
 .banner-main-inner {
   max-width: 1100px;
   margin: auto;
-  padding: .5rem 1.5rem;
+  padding: .6rem 1.5rem;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
 }
+
 .banner-countdown-label {
   font-family: var(--font-head);
   font-size: 11px;
