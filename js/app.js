@@ -308,11 +308,21 @@ async function showLoadRaceModal() {
   showModal('modal-race');
 }
 
+function onMedalRaceToggle() {
+  const isMedal = document.getElementById('race-medal').checked;
+  if (isMedal) {
+    document.getElementById('race-double').checked = true;
+    document.getElementById('race-nodiscard').checked = true;
+  }
+}
+
 function onRaceSelectChange() {
   const n = parseInt(document.getElementById('race-num-select').value);
   const existing = allRaces.find(r => r.race_number === n);
   document.getElementById('race-double').checked = existing ? existing.is_double : false;
   document.getElementById('race-nodiscard').checked = existing ? existing.no_discard : false;
+  document.getElementById('race-medal').checked = existing ? (existing.is_medal_race || false) : false;
+  
 
   const cd = currentChampData;
   const activeD = getActiveDiscards(n, cd);
@@ -445,6 +455,7 @@ async function saveRaceResults() {
   const n = parseInt(document.getElementById('race-num-select').value);
   const isDouble = document.getElementById('race-double').checked;
   const noDiscard = document.getElementById('race-nodiscard').checked;
+  const isMedal = document.getElementById('race-medal').checked;
   const pCount = allPilots.length;
   const penaltyPts = pCount + 1;
 
@@ -482,12 +493,12 @@ async function saveRaceResults() {
   let raceId;
   const existingRace = allRaces.find(r => r.race_number === n);
   if (existingRace) {
-    const { error } = await db.from('races').update({ is_double: isDouble, no_discard: noDiscard }).eq('id', existingRace.id);
+    const { error } = await db.from('races').update({ is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal }).eq('id', existingRace.id);
     if (error) { showToast('Error al guardar configuración de regata', 'error'); return; }
     raceId = existingRace.id;
   } else {
     const { data, error } = await db.from('races').insert({
-      championship_id: currentChampId, race_number: n, is_double: isDouble, no_discard: noDiscard
+      championship_id: currentChampId, race_number: n, is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal
     }).select().single();
     if (error) { showToast('Error al guardar regata', 'error'); return; }
     raceId = data.id;
