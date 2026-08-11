@@ -273,7 +273,17 @@
           </label>
         </div>
       </div>
-      <div class="info-box">Equipos por ranking actual: 1A, 2B, 3B, 4A, 5A, 6B... · Se suman los puestos de los primeros 4 de cada equipo. Menor suma gana (+1pt). Equipo perdedor +3pts.</div>
+      <div class="info-box">Equipos por ranking actual: 1A, 2B, 3B, 4A, 5A, 6B... · Se suman los puestos de los primeros 4 de cada equipo. Menor suma gana.</div>
+      <div class="row2">
+        <div class="field">
+          <label>Puntos que gana el equipo GANADOR</label>
+          <input type="number" id="team-win-points" value="1" step="0.5">
+        </div>
+        <div class="field">
+          <label>Puntos que gana el equipo PERDEDOR</label>
+          <input type="number" id="team-lose-points" value="3" step="0.5">
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div style="background:#E8F4F8;border-radius:6px;padding:.75rem;border:1px solid rgba(26,107,138,0.2)">
           <div style="font-size:12px;font-weight:600;color:#1A6B8A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Equipo A</div>
