@@ -618,7 +618,12 @@ function renderResultsTable() {
         const winPts = race.team_win_points != null ? race.team_win_points : 1;
         const won = pts === winPts;
         const teamColor = team === 'A' ? '#1A6B8A' : '#C8880A';
-        content = `<span style="font-size:11px;font-weight:600;color:${teamColor}">Eq.${team}</span> <span style="font-size:11px;color:${won?'#166534':'#991B1B'}">+${pts}</span>`;
+        const ptsLabel = pts >= 0 ? '+' + pts : '' + pts;
+        if (team) {
+          content = `<span style="font-size:11px;font-weight:600;color:${teamColor}">Eq.${team}</span> <span style="font-size:11px;color:${won?'#166534':'#991B1B'}">${ptsLabel}</span>`;
+        } else {
+          content = `<span style="font-size:11px;font-weight:600;color:#7A9AB8">Ind.</span> <span style="font-size:11px;color:${pts>=0?'#166534':'#991B1B'}">${ptsLabel}</span>`;
+        }
       }
       else content = raceData.result.position + (race.is_double ? '<sup style="font-size:9px;color:var(--accent)">×2</sup>' : '');
       return `<td class="${isDiscard ? 'cell-discard' : ''}">${content}</td>`;
@@ -1013,17 +1018,21 @@ function previewTeamResult() {
     winner = bestA < bestB ? 'B' : 'A';
   }
 
+  const wPts = parseFloat(document.getElementById('team-win-points').value);
+  const lPts = parseFloat(document.getElementById('team-lose-points').value);
+  const ptsA = winner === 'A' ? wPts : lPts;
+  const ptsB = winner === 'B' ? wPts : lPts;
   const preview = document.getElementById('team-result-preview');
   preview.style.display = '';
   preview.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.5rem">
       <div style="background:${winner==='A'?'#F0FDF4':'#FEF9EC'};border-radius:6px;padding:.75rem;border:1px solid ${winner==='A'?'#86EFAC':'rgba(232,160,32,0.3)'}">
-        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR':'PERDEDOR'}</div>
-        <div style="font-size:12px;color:#666">Suma: ${scoreA}</div>
+        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR':'PERDEDOR'} (${isNaN(ptsA)?'?':ptsA}pts c/u)</div>
+        <div style="font-size:12px;color:#666">Suma posiciones: ${scoreA}</div>
       </div>
       <div style="background:${winner==='B'?'#F0FDF4':'#FEF9EC'};border-radius:6px;padding:.75rem;border:1px solid ${winner==='B'?'#86EFAC':'rgba(232,160,32,0.3)'}">
-        <div style="font-size:11px;font-weight:600;color:${winner==='B'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO B — ${winner==='B'?'GANADOR':'PERDEDOR'}</div>
-        <div style="font-size:12px;color:#666">Suma: ${scoreB}</div>
+        <div style="font-size:11px;font-weight:600;color:${winner==='B'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO B — ${winner==='B'?'GANADOR':'PERDEDOR'} (${isNaN(ptsB)?'?':ptsB}pts c/u)</div>
+        <div style="font-size:12px;color:#666">Suma posiciones: ${scoreB}</div>
       </div>
     </div>
     ${scoreA === scoreB ? '<div style="font-size:12px;color:#B86010;margin-top:6px">Empate — desempate por 1° llegado: el equipo con mejor individual pierde.</div>' : ''}
