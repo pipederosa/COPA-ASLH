@@ -1689,11 +1689,13 @@ async function loadAnnualStandings() {
     const activeD = c.total_discards >= 2 && maxRace >= c.discard2_from ? 2
       : c.total_discards >= 1 && maxRace >= c.discard1_from ? 1 : 0;
 
+    const medalRace = races.find(r => r.is_medal_race);
     const scores = pilots.map(pilot => {
       const pts = races.map(race => {
         const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
         return res ? { race, pts: res.points } : null;
       }).filter(Boolean);
+      const gross = pts.reduce((a,p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
       const discardable = pts.filter(p => !p.race.no_discard);
       let discarded = [];
       if (activeD > 0 && discardable.length) {
@@ -1703,8 +1705,14 @@ async function loadAnnualStandings() {
       const raceNet = pts.filter(p=>!discarded.includes(p.race.id))
         .reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
       const adjTotal = adjs.filter(a=>a.pilot_id===pilot.id).reduce((a,adj)=>a+adj.points,0);
-      return { name: pilot.name, net: raceNet + adjTotal };
-    }).sort((a,b)=>a.net-b.net);
+      // Posición en Medal Race para desempate
+      let medalPos = 9999;
+      if (medalRace) {
+        const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
+        if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
+      }
+      return { name: pilot.name, net: raceNet + adjTotal, gross, medalPos };
+    }).sort((a,b)=>a.net-b.net || a.medalPos-b.medalPos || a.gross-b.gross);
 
     // Assign finish positions (1-based)
     const ranked = scores.map((s, i) => ({ ...s, position: i + 1 }));
