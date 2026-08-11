@@ -857,47 +857,70 @@ function renderTeamRaceForm(raceNum, existingRace) {
   }
 
   const ranking = getRankingBeforeRace(raceNum);
-  const teams = ranking.map((p, i) => ({ pilot: p.pilot, team: getTeamForRank(i), rank: i + 1, net: p.net }));
+  let teams = ranking.map((p, i) => ({ pilot: p.pilot, team: getTeamForRank(i), rank: i + 1, net: p.net }));
 
   const existingResults = existingRace ? allResults.filter(r => r.race_id === existingRace.id) : [];
 
-  // Show team lists
+  // Detectar si hay cantidad impar
+  const teamACount = teams.filter(t => t.team === 'A').length;
+  const teamBCount = teams.filter(t => t.team === 'B').length;
+  const isOdd = teamACount !== teamBCount;
+  const biggerTeam = teamACount > teamBCount ? 'A' : 'B';
+
+  const oddSection = document.getElementById('odd-pilot-section');
+  const oddSelect = document.getElementById('odd-pilot-select');
+
+  if (isOdd) {
+    oddSection.style.display = '';
+    // Poblar selector solo con los del equipo mayor
+    const biggerTeamPilots = teams.filter(t => t.team === biggerTeam);
+    const currentOdd = oddSelect.value || (existingRace ? existingRace.odd_pilot_id : '');
+    oddSelect.innerHTML = '<option value="">— elegir —</option>' +
+      biggerTeamPilots.map(t => `<option value="${t.pilot.id}">${esc(t.pilot.name)} (Eq.${biggerTeam})</option>`).join('');
+    if (currentOdd) oddSelect.value = currentOdd;
+    // Restaurar puntos guardados
+    if (existingRace && existingRace.odd_pilot_points != null) {
+      document.getElementById('odd-pilot-points').value = existingRace.odd_pilot_points;
+    }
+  } else {
+    oddSection.style.display = 'none';
+    oddSelect.value = '';
+  }
+
+  const oddPilotId = isOdd ? oddSelect.value : '';
+
+  // Quitar al piloto impar de los equipos para el formulario
+  const activeTeams = teams.filter(t => t.pilot.id !== oddPilotId);
+
+  // Mostrar listas de equipos (marcando quién no compite)
   const teamA = teams.filter(t => t.team === 'A');
   const teamB = teams.filter(t => t.team === 'B');
 
-  document.getElementById('team-a-list').innerHTML = teamA.map(t =>
-    `<div style="font-size:12px;padding:3px 0;display:flex;gap:6px;align-items:center">
-      <span style="color:#1A6B8A;font-weight:600;min-width:16px">${t.rank}°</span>
-      <span>${esc(t.pilot.name)}</span>
+  const renderTeamList = (list, color) => list.map(t => {
+    const isOddP = t.pilot.id === oddPilotId;
+    return `<div style="font-size:12px;padding:3px 0;display:flex;gap:6px;align-items:center;${isOddP?'opacity:.5':''}">
+      <span style="color:${color};font-weight:600;min-width:16px">${t.rank}°</span>
+      <span>${esc(t.pilot.name)}${isOddP?' <em style="color:#991B1B">(no compite)</em>':''}</span>
       <span style="color:#7A9AB8;font-size:11px">(${t.net}pts)</span>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 
-  document.getElementById('team-b-list').innerHTML = teamB.map(t =>
-    `<div style="font-size:12px;padding:3px 0;display:flex;gap:6px;align-items:center">
-      <span style="color:#C8880A;font-weight:600;min-width:16px">${t.rank}°</span>
-      <span>${esc(t.pilot.name)}</span>
-      <span style="color:#7A9AB8;font-size:11px">(${t.net}pts)</span>
-    </div>`
-  ).join('');
+  document.getElementById('team-a-list').innerHTML = renderTeamList(teamA, '#1A6B8A');
+  document.getElementById('team-b-list').innerHTML = renderTeamList(teamB, '#C8880A');
 
-  // Race form: position slots (1st, 2nd...) -> pick who arrived there
-  // Build a map: pilotId -> saved position slot
-  const savedByPilot = {};
-  existingResults.forEach(r => { savedByPilot[r.pilot_id] = r.position; });
+  // Formulario de posiciones: solo los que compiten
+  const pCount = activeTeams.length;
 
-  // Build pilot options grouped by team for clarity
-  const pilotOptsA = teams.filter(t=>t.team==='A').map(t =>
-    `<option value="${t.pilot.id}" style="color:#1A6B8A">[A] ${esc(t.pilot.name)}</option>`).join('');
-  const pilotOptsB = teams.filter(t=>t.team==='B').map(t =>
-    `<option value="${t.pilot.id}" style="color:#C8880A">[B] ${esc(t.pilot.name)}</option>`).join('');
-  const allPilotOpts = `<optgroup label="Equipo A">${pilotOptsA}</optgroup><optgroup label="Equipo B">${pilotOptsB}</optgroup>`;
+  const makeOpts = () => {
+    const optsA = activeTeams.filter(t=>t.team==='A').map(t =>
+      `<option value="${t.pilot.id}">[A] ${esc(t.pilot.name)}</option>`).join('');
+    const optsB = activeTeams.filter(t=>t.team==='B').map(t =>
+      `<option value="${t.pilot.id}">[B] ${esc(t.pilot.name)}</option>`).join('');
+    return `<optgroup label="Equipo A">${optsA}</optgroup><optgroup label="Equipo B">${optsB}</optgroup>`;
+  };
 
-  const pCount = allPilots.length;
   document.getElementById('team-race-form-body').innerHTML = Array.from({length: pCount}, (_, i) => {
     const slot = i + 1;
-    // Find who was in this slot
-    const savedPilotId = existingResults.find(r => r.position === slot)?.pilot_id || '';
     const medal = slot===1?'🥇':slot===2?'🥈':slot===3?'🥉':'';
     return `<div style="display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,107,138,0.1)" id="trow-${i}">
       <div style="font-size:13px;font-weight:600;color:#4A6080;display:flex;align-items:center;gap:3px">
@@ -905,41 +928,41 @@ function renderTeamRaceForm(raceNum, existingRace) {
       </div>
       <select id="tpilot-${i}" style="font-size:13px" onchange="previewTeamResult()">
         <option value="">— elegir —</option>
-        ${allPilotOpts}
+        ${makeOpts()}
       </select>
     </div>`;
   }).join('');
 
-  // Restore saved values
+  // Restaurar valores guardados (solo los que compiten)
   Array.from({length: pCount}, (_, i) => {
     const slot = i + 1;
-    const savedPilotId = existingResults.find(r => r.position === slot)?.pilot_id || '';
+    const savedPilotId = existingResults.find(r => r.position === slot && r.pilot_id !== oddPilotId)?.pilot_id || '';
     const sel = document.getElementById('tpilot-'+i);
     if (sel && savedPilotId) sel.value = savedPilotId;
   });
 
-  // Store teams for lookup
   window._teamRaceOrder = teams;
+  window._teamActivePilots = activeTeams;
+  window._oddPilotId = oddPilotId;
   document.getElementById('team-result-preview').style.display = 'none';
   updateAvailableTeamPilots();
   previewTeamResult();
 }
 
 function updateAvailableTeamPilots() {
-  const teams = window._teamRaceOrder;
-  if (!teams) return;
-  const pCount = allPilots.length;
+  const activeTeams = window._teamActivePilots;
+  if (!activeTeams) return;
+  const pCount = activeTeams.length;
 
   const selected = Array.from({length: pCount}, (_, i) => {
     const sel = document.getElementById('tpilot-'+i);
     return sel ? sel.value : '';
   });
 
-  // Build grouped options
   const makeOpts = (takenElsewhere) => {
-    const optsA = teams.filter(t => t.team==='A' && !takenElsewhere.has(t.pilot.id))
+    const optsA = activeTeams.filter(t => t.team==='A' && !takenElsewhere.has(t.pilot.id))
       .map(t => `<option value="${t.pilot.id}">[A] ${esc(t.pilot.name)}</option>`).join('');
-    const optsB = teams.filter(t => t.team==='B' && !takenElsewhere.has(t.pilot.id))
+    const optsB = activeTeams.filter(t => t.team==='B' && !takenElsewhere.has(t.pilot.id))
       .map(t => `<option value="${t.pilot.id}">[B] ${esc(t.pilot.name)}</option>`).join('');
     return `<optgroup label="Equipo A">${optsA}</optgroup><optgroup label="Equipo B">${optsB}</optgroup>`;
   };
@@ -956,21 +979,19 @@ function updateAvailableTeamPilots() {
 
 function previewTeamResult() {
   updateAvailableTeamPilots();
-  const teams = window._teamRaceOrder;
-  if (!teams) return;
-  const pCount = allPilots.length;
+  const activeTeams = window._teamActivePilots;
+  if (!activeTeams) return;
+  const pCount = activeTeams.length;
 
-  // Read selected pilot per slot
   const slots = Array.from({length: pCount}, (_, i) => {
     const pilotId = document.getElementById('tpilot-'+i)?.value || '';
-    const pilot = teams.find(t => t.pilot.id === pilotId);
+    const pilot = activeTeams.find(t => t.pilot.id === pilotId);
     return { slot: i+1, pilotId, team: pilot ? pilot.team : null };
   });
 
   const allFilled = slots.every(s => s.pilotId && s.team);
   if (!allFilled) { document.getElementById('team-result-preview').style.display = 'none'; return; }
 
-  // Highlight duplicate selections
   const seen = new Set();
   let hasDupe = false;
   slots.forEach((s, i) => {
@@ -980,11 +1001,8 @@ function previewTeamResult() {
   });
   if (hasDupe) { document.getElementById('team-result-preview').style.display = 'none'; return; }
 
-  // Only top 4 finishers per team count (by arrival slot order)
-  const topA = slots.filter(s => s.team === 'A').sort((a,b)=>a.slot-b.slot).slice(0,4);
-  const topB = slots.filter(s => s.team === 'B').sort((a,b)=>a.slot-b.slot).slice(0,4);
-  const scoreA = topA.reduce((sum, s) => sum + s.slot, 0);
-  const scoreB = topB.reduce((sum, s) => sum + s.slot, 0);
+  const scoreA = slots.filter(s => s.team === 'A').reduce((sum, s) => sum + s.slot, 0);
+  const scoreB = slots.filter(s => s.team === 'B').reduce((sum, s) => sum + s.slot, 0);
 
   let winner;
   if (scoreA < scoreB) winner = 'A';
@@ -1004,7 +1022,7 @@ function previewTeamResult() {
         <div style="font-size:12px;color:#666">Suma: ${scoreA}</div>
       </div>
       <div style="background:${winner==='B'?'#F0FDF4':'#FEF9EC'};border-radius:6px;padding:.75rem;border:1px solid ${winner==='B'?'#86EFAC':'rgba(232,160,32,0.3)'}">
-        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR':'PERDEDOR'}</div>
+        <div style="font-size:11px;font-weight:600;color:${winner==='B'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO B — ${winner==='B'?'GANADOR':'PERDEDOR'}</div>
         <div style="font-size:12px;color:#666">Suma: ${scoreB}</div>
       </div>
     </div>
@@ -1019,15 +1037,27 @@ async function saveTeamRaceResults() {
   const winPts = parseFloat(document.getElementById('team-win-points').value);
   const losePts = parseFloat(document.getElementById('team-lose-points').value);
   if (isNaN(winPts) || isNaN(losePts)) { showToast('Completá los puntos de ganador y perdedor', 'error'); return; }
-  const teams = window._teamRaceOrder;
-  if (!teams) return;
 
-  const pCount = allPilots.length;
+  const activeTeams = window._teamActivePilots;
+  const oddPilotId = window._oddPilotId || null;
+  if (!activeTeams) return;
 
-  // Read slot -> pilot from dropdowns
+  const pCount = activeTeams.length;
+
+  // Validar piloto impar si corresponde
+  const oddSection = document.getElementById('odd-pilot-section');
+  const hasOdd = oddSection.style.display !== 'none';
+  let oddPoints = null;
+  if (hasOdd) {
+    if (!oddPilotId) { showToast('Elegí quién no compite', 'error'); return; }
+    oddPoints = parseFloat(document.getElementById('odd-pilot-points').value);
+    if (isNaN(oddPoints)) { showToast('Ingresá los puntos del participante que no compite', 'error'); return; }
+  }
+
+  // Leer posiciones de los que compiten
   const slots = Array.from({length: pCount}, (_, i) => {
     const pilotId = document.getElementById('tpilot-'+i)?.value || '';
-    const teamEntry = teams.find(t => t.pilot.id === pilotId);
+    const teamEntry = activeTeams.find(t => t.pilot.id === pilotId);
     return { slot: i+1, pilotId, team: teamEntry ? teamEntry.team : null };
   });
 
@@ -1041,11 +1071,8 @@ async function saveTeamRaceResults() {
     usedPilots.add(s.pilotId);
   }
 
-  // Only top 4 finishers per team count
-  const topA = slots.filter(s => s.team === 'A').sort((a,b)=>a.slot-b.slot).slice(0,4);
-  const topB = slots.filter(s => s.team === 'B').sort((a,b)=>a.slot-b.slot).slice(0,4);
-  const scoreA = topA.reduce((sum, s) => sum + s.slot, 0);
-  const scoreB = topB.reduce((sum, s) => sum + s.slot, 0);
+  const scoreA = slots.filter(s => s.team === 'A').reduce((sum, s) => sum + s.slot, 0);
+  const scoreB = slots.filter(s => s.team === 'B').reduce((sum, s) => sum + s.slot, 0);
   let winner;
   if (scoreA < scoreB) winner = 'A';
   else if (scoreB < scoreA) winner = 'B';
@@ -1055,7 +1082,7 @@ async function saveTeamRaceResults() {
     winner = bestA < bestB ? 'B' : 'A';
   }
 
-  // Points: winner team = winPts, loser team = losePts
+  // Entradas de los que compiten
   const entries = slots.map(s => ({
     pilotId: s.pilotId,
     status: 'normal',
@@ -1064,13 +1091,26 @@ async function saveTeamRaceResults() {
     team: s.team
   }));
 
-  // Upsert race config with is_team_race = true
+  // Agregar al piloto impar con sus puntos manuales
+  if (hasOdd && oddPilotId) {
+    entries.push({
+      pilotId: oddPilotId,
+      status: 'normal',
+      position: pCount + 1,
+      points: oddPoints,
+      team: null
+    });
+  }
+
+  // Guardar config de la regata
   let raceId;
   const existingRace = allRaces.find(r => r.race_number === n);
   if (existingRace) {
     const { error } = await db.from('races').update({
       is_double: isDouble, no_discard: noDiscard, is_team_race: true,
-      team_win_points: winPts, team_lose_points: losePts
+      team_win_points: winPts, team_lose_points: losePts,
+      odd_pilot_id: hasOdd ? oddPilotId : null,
+      odd_pilot_points: hasOdd ? oddPoints : null
     }).eq('id', existingRace.id);
     if (error) { showToast('Error al guardar configuración', 'error'); return; }
     raceId = existingRace.id;
@@ -1078,7 +1118,9 @@ async function saveTeamRaceResults() {
     const { data, error } = await db.from('races').insert({
       championship_id: currentChampId, race_number: n,
       is_double: isDouble, no_discard: noDiscard, is_team_race: true,
-      team_win_points: winPts, team_lose_points: losePts
+      team_win_points: winPts, team_lose_points: losePts,
+      odd_pilot_id: hasOdd ? oddPilotId : null,
+      odd_pilot_points: hasOdd ? oddPoints : null
     }).select().single();
     if (error) { showToast('Error al guardar regata', 'error'); return; }
     raceId = data.id;
