@@ -615,9 +615,10 @@ function renderResultsTable() {
       else if (race.is_team_race) {
         const team = raceData.result.team || '';
         const pts = raceData.result.points;
-        const won = pts === 1;
+        const winPts = race.team_win_points != null ? race.team_win_points : 1;
+        const won = pts === winPts;
         const teamColor = team === 'A' ? '#1A6B8A' : '#C8880A';
-        content = `<span style="font-size:11px;font-weight:600;color:${teamColor}">Eq.${team}</span> <span style="font-size:11px;color:${won?'#166534':'#991B1B'}">${won?'+1':'+3'}</span>`;
+        content = `<span style="font-size:11px;font-weight:600;color:${teamColor}">Eq.${team}</span> <span style="font-size:11px;color:${won?'#166534':'#991B1B'}">+${pts}</span>`;
       }
       else content = raceData.result.position + (race.is_double ? '<sup style="font-size:9px;color:var(--accent)">×2</sup>' : '');
       return `<td class="${isDiscard ? 'cell-discard' : ''}">${content}</td>`;
@@ -842,6 +843,8 @@ function onTeamRaceSelectChange() {
   const existing = allRaces.find(r => r.race_number === n);
   document.getElementById('team-race-double').checked = existing ? existing.is_double : false;
   document.getElementById('team-race-nodiscard').checked = existing ? existing.no_discard : true;
+  document.getElementById('team-win-points').value = existing && existing.team_win_points != null ? existing.team_win_points : 1;
+  document.getElementById('team-lose-points').value = existing && existing.team_lose_points != null ? existing.team_lose_points : 3;
   renderTeamRaceForm(n, existing);
 }
 
@@ -997,11 +1000,11 @@ function previewTeamResult() {
   preview.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.5rem">
       <div style="background:${winner==='A'?'#F0FDF4':'#FEF9EC'};border-radius:6px;padding:.75rem;border:1px solid ${winner==='A'?'#86EFAC':'rgba(232,160,32,0.3)'}">
-        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR (+1pt)':'PERDEDOR (+3pts)'}</div>
+        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR':'PERDEDOR'}</div>
         <div style="font-size:12px;color:#666">Suma: ${scoreA}</div>
       </div>
       <div style="background:${winner==='B'?'#F0FDF4':'#FEF9EC'};border-radius:6px;padding:.75rem;border:1px solid ${winner==='B'?'#86EFAC':'rgba(232,160,32,0.3)'}">
-        <div style="font-size:11px;font-weight:600;color:${winner==='B'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO B — ${winner==='B'?'GANADOR (+1pt)':'PERDEDOR (+3pts)'}</div>
+        <div style="font-size:11px;font-weight:600;color:${winner==='A'?'#166534':'#C8880A'};margin-bottom:4px">EQUIPO A — ${winner==='A'?'GANADOR':'PERDEDOR'}</div>
         <div style="font-size:12px;color:#666">Suma: ${scoreB}</div>
       </div>
     </div>
@@ -1013,6 +1016,9 @@ async function saveTeamRaceResults() {
   const n = parseInt(document.getElementById('team-race-num-select').value);
   const isDouble = document.getElementById('team-race-double').checked;
   const noDiscard = document.getElementById('team-race-nodiscard').checked;
+  const winPts = parseFloat(document.getElementById('team-win-points').value);
+  const losePts = parseFloat(document.getElementById('team-lose-points').value);
+  if (isNaN(winPts) || isNaN(losePts)) { showToast('Completá los puntos de ganador y perdedor', 'error'); return; }
   const teams = window._teamRaceOrder;
   if (!teams) return;
 
@@ -1049,12 +1055,12 @@ async function saveTeamRaceResults() {
     winner = bestA < bestB ? 'B' : 'A';
   }
 
-  // Points: winner team +1, loser team +3
+  // Points: winner team = winPts, loser team = losePts
   const entries = slots.map(s => ({
     pilotId: s.pilotId,
     status: 'normal',
     position: s.slot,
-    points: s.team === winner ? 1 : 3,
+    points: s.team === winner ? winPts : losePts,
     team: s.team
   }));
 
@@ -1063,14 +1069,16 @@ async function saveTeamRaceResults() {
   const existingRace = allRaces.find(r => r.race_number === n);
   if (existingRace) {
     const { error } = await db.from('races').update({
-      is_double: isDouble, no_discard: noDiscard, is_team_race: true
+      is_double: isDouble, no_discard: noDiscard, is_team_race: true,
+      team_win_points: winPts, team_lose_points: losePts
     }).eq('id', existingRace.id);
     if (error) { showToast('Error al guardar configuración', 'error'); return; }
     raceId = existingRace.id;
   } else {
     const { data, error } = await db.from('races').insert({
       championship_id: currentChampId, race_number: n,
-      is_double: isDouble, no_discard: noDiscard, is_team_race: true
+      is_double: isDouble, no_discard: noDiscard, is_team_race: true,
+      team_win_points: winPts, team_lose_points: losePts
     }).select().single();
     if (error) { showToast('Error al guardar regata', 'error'); return; }
     raceId = data.id;
