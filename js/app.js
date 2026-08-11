@@ -559,7 +559,23 @@ function computeScores() {
     return { pilot, pts, gross, net, discarded, adjTotal };
   });
 
-  return { pilotData, loadedRaceNums, activeDiscards };
+  // Medal Race para desempate: obtener la posición de cada piloto en la Medal Race
+  const medalRace = allRaces.find(r => r.is_medal_race);
+  pilotData.forEach(pd => {
+    if (medalRace) {
+      const medalResult = allResults.find(r => r.race_id === medalRace.id && r.pilot_id === pd.pilot.id);
+      if (medalResult && !PENALTIES.includes(medalResult.status)) {
+        pd.medalPos = medalResult.position;
+      } else {
+        // No corrió o penalizado = cuenta como último
+        pd.medalPos = 9999;
+      }
+    } else {
+      pd.medalPos = 9999;
+    }
+  });
+
+  return { pilotData, loadedRaceNums, activeDiscards, hasMedalRace: !!medalRace };
 }
 
 // ===== RENDER RESULTS TABLE =====
@@ -570,8 +586,8 @@ function renderResultsTable() {
     return;
   }
 
-  const { pilotData, loadedRaceNums, activeDiscards } = computeScores();
-  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.gross - b.gross);
+  const { pilotData, loadedRaceNums, activeDiscards, hasMedalRace } = computeScores();
+  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
 
   const raceHeaders = loadedRaceNums.map(n => {
     const race = allRaces.find(r => r.race_number === n);
@@ -646,6 +662,7 @@ function renderResultsTable() {
       <strong>⊘</strong> no descartable ·
       <span style="font-size:11px;font-weight:600;color:#1A6B8A">EQ</span> regata por equipos (+1 ganador / +3 perdedor)
       ${activeDiscards > 0 ? `· <em>(${activeDiscards} descarte(s) activo(s))</em>` : ''}
+      ${hasMedalRace ? `· <strong style="color:#C8880A">MR</strong> los empates se definen por la Medal Race` : ''}
     </div>
     <div style="margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="exportExcel()">⬇ Exportar Excel</button>
@@ -713,7 +730,7 @@ async function editRace(raceNum) {
 // ===== EXPORT CSV =====
 function exportCSV() {
   const { pilotData, loadedRaceNums } = computeScores();
-  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.gross - b.gross);
+  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
 
   const header = ['Pos', 'Participante', 'Vela',
     ...loadedRaceNums.map(n => {
@@ -1271,7 +1288,7 @@ async function deleteToaFile(id, path) {
 // ===== EXPORT EXCEL =====
 function exportExcel() {
   const { pilotData, loadedRaceNums } = computeScores();
-  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.gross - b.gross);
+  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
 
   // Build header row
   const headers = ['Pos', 'Participante', 'Vela',
