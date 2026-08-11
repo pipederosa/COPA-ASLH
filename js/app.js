@@ -105,6 +105,7 @@ async function loadChampionships() {
   grid.innerHTML = champCards.map(({ champ: c, top3 }) => `
     <div class="champ-card" onclick="openChampionship('${c.id}')">
       <div class="champ-card-name">${esc(c.name)}</div>
+      ${c.event_date ? `<div style="font-size:12px;color:var(--accent-dark);font-weight:500;margin-bottom:2px">${new Date(c.event_date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</div>` : ''}
       ${c.description ? `<div class="champ-card-desc">${esc(c.description)}</div>` : ''}
       <div class="champ-card-meta">
         <span class="meta-chip">${c.total_races} regatas</span>
@@ -168,7 +169,8 @@ async function openChampionship(id) {
   if (error) { showToast('Error al cargar campeonato', 'error'); return; }
   currentChampData = data;
   document.getElementById('champ-title').textContent = data.name;
-  document.getElementById('champ-desc').textContent = data.description || '';
+  const dateStr = data.event_date ? new Date(data.event_date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  document.getElementById('champ-desc').textContent = dateStr && data.description ? dateStr + ' · ' + data.description : (dateStr || data.description || '');
   showView('champ');
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
   document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===0));
@@ -225,7 +227,8 @@ async function saveChampionship() {
   if (discards >= 1 && !d1) { showToast('Indicá desde qué regata aplica el 1er descarte', 'error'); return; }
   if (discards >= 2 && !d2) { showToast('Indicá desde qué regata aplica el 2do descarte', 'error'); return; }
 
-  const payload = { name, description: desc, total_races: races, total_discards: discards, discard1_from: d1, discard2_from: d2 };
+  const eventDate = document.getElementById('cf-event-date').value || null;
+  const payload = { name, description: desc, total_races: races, total_discards: discards, discard1_from: d1, discard2_from: d2, event_date: eventDate };
   let error;
   if (editingChampId) {
     ({ error } = await db.from('championships').update(payload).eq('id', editingChampId));
@@ -240,7 +243,7 @@ async function saveChampionship() {
 }
 
 function clearChampForm() {
-  ['cf-name','cf-desc','cf-races','cf-d1','cf-d2'].forEach(id => document.getElementById(id).value = '');
+  ['cf-name','cf-desc','cf-races','cf-d1','cf-d2','cf-event-date'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('cf-discards').value = '0';
   document.getElementById('cf-d2-wrap').style.display = 'none';
   document.getElementById('cf-discard-info').style.display = 'none';
@@ -1087,6 +1090,7 @@ function showEditChampModal() {
   const c = currentChampData;
   document.getElementById('cf-name').value = c.name;
   document.getElementById('cf-desc').value = c.description || '';
+  document.getElementById('cf-event-date').value = c.event_date || '';
   document.getElementById('cf-races').value = c.total_races;
   document.getElementById('cf-discards').value = c.total_discards;
   document.getElementById('cf-d1').value = c.discard1_from || '';
@@ -1106,7 +1110,8 @@ saveChampionship = async function() {
     if (data) {
       currentChampData = data;
       document.getElementById('champ-title').textContent = data.name;
-      document.getElementById('champ-desc').textContent = data.description || '';
+      const ds = data.event_date ? new Date(data.event_date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'}) : '';
+      document.getElementById('champ-desc').textContent = ds && data.description ? ds + ' · ' + data.description : (ds || data.description || '');
     }
   }
   document.getElementById('modal-champ-title').textContent = 'Nuevo campeonato';
