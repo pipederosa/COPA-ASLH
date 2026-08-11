@@ -599,7 +599,8 @@ function renderResultsTable() {
     const race = allRaces.find(r => r.race_number === n);
     const cls = (race.is_double ? 'th-double ' : '') + (race.no_discard ? 'th-nodiscard' : '');
     const teamTag = race.is_team_race ? '<sup style="font-size:9px;color:#E8A020;margin-left:1px">EQ</sup>' : '';
-    return `<th class="${cls}">R${n}${teamTag}</th>`;
+    const medalTag = race.is_medal_race ? '<div style="font-size:12px;font-weight:700;color:#C8880A;letter-spacing:.5px;margin-top:1px">MR</div>' : '';
+    return `<th class="${cls}">R${n}${teamTag}${medalTag}</th>`;
   }).join('');
 
   const rows = sorted.map((p, rank) => {
