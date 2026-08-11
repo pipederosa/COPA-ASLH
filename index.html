@@ -294,6 +294,19 @@
           <div id="team-b-list"></div>
         </div>
       </div>
+      <div id="odd-pilot-section" style="display:none;background:#FEF2F2;border-radius:6px;padding:.75rem;border:1px solid rgba(184,48,48,0.2);margin-top:8px">
+        <div style="font-size:12px;font-weight:600;color:#991B1B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Participante impar (no compite)</div>
+        <div class="row2">
+          <div class="field" style="margin:0">
+            <label>Quién no compite</label>
+            <select id="odd-pilot-select" onchange="renderTeamRaceForm(parseInt(document.getElementById('team-race-num-select').value), allRaces.find(r=>r.race_number===parseInt(document.getElementById('team-race-num-select').value)))"></select>
+          </div>
+          <div class="field" style="margin:0">
+            <label>Puntos que suma/resta (+/-)</label>
+            <input type="number" id="odd-pilot-points" placeholder="Ej: 2 o -1" step="0.5">
+          </div>
+        </div>
+      </div>
       <div>
         <div style="font-size:13px;font-weight:500;color:#4A6080;margin-bottom:.5rem">Orden de llegada de cada participante:</div>
         <div style="display:grid;grid-template-columns:28px 1fr 80px;gap:8px;padding:6px 0;font-size:11px;font-weight:500;color:#7A9AB8;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid rgba(26,107,138,0.15)">
