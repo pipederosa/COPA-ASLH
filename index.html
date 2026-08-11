@@ -229,12 +229,15 @@
           <label>Regata N°</label>
           <select id="race-num-select" onchange="onRaceSelectChange()"></select>
         </div>
-        <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:1px">
+        <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:1px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="race-double"> Regata doble (×2)
           </label>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="race-nodiscard"> No descartable
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;font-weight:600;color:#C8880A">
+            <input type="checkbox" id="race-medal" onchange="onMedalRaceToggle()"> Medal Race
           </label>
         </div>
       </div>
