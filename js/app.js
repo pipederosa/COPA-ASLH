@@ -809,9 +809,12 @@ function getRankingBeforeRace(raceNum) {
       );
       for (let d = 0; d < Math.min(activeDiscards, sorted.length); d++) discarded.push(sorted[d].race.id);
     }
-    const net = pts.filter(p => !discarded.includes(p.race.id))
+    const raceNet = pts.filter(p => !discarded.includes(p.race.id))
       .reduce((a, p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
-    return { pilot, net };
+    const adjTotal = allAdjustments
+      .filter(a => a.pilot_id === pilot.id)
+      .reduce((a, adj) => a + adj.points, 0);
+    return { pilot, net: raceNet + adjTotal };
   });
 
   return pilotScores.sort((a, b) => a.net - b.net);
