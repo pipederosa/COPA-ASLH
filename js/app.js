@@ -314,6 +314,7 @@ async function showLoadRaceModal() {
     opt.value = i; opt.textContent = `Regata ${i}`;
     sel.appendChild(opt);
   }
+  document.getElementById('race-ms-label').style.display = activeMedalSeries ? 'flex' : 'none';
   onRaceSelectChange();
   showModal('modal-race');
 }
