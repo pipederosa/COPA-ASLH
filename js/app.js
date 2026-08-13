@@ -623,8 +623,6 @@ function setResultsView(mode) {
   renderResultsTable();
 }
 
-  }
-
 function renderNormalTableHTML(maxRaceLimit) {
   const { pilotData, loadedRaceNums, activeDiscards, hasMedalRace } = computeScores();
   const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
