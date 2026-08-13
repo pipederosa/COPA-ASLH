@@ -10,6 +10,7 @@ let allPilots = [];
 let allRaces = [];
 let allResults = [];
 let allAdjustments = [];
+let activeMedalSeries = null;
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
@@ -185,16 +186,18 @@ async function openChampionship(id) {
 }
 
 async function loadChampData() {
-  const [pilotsRes, racesRes, resultsRes, adjRes] = await Promise.all([
+  const [pilotsRes, racesRes, resultsRes, adjRes, msRes] = await Promise.all([
     db.from('pilots').select('*').eq('championship_id', currentChampId).order('sort_order'),
     db.from('races').select('*').eq('championship_id', currentChampId).order('race_number'),
     db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', currentChampId),
-    db.from('point_adjustments').select('*').eq('championship_id', currentChampId)
+    db.from('point_adjustments').select('*').eq('championship_id', currentChampId),
+    db.from('medal_series').select('*').eq('championship_id', currentChampId).eq('active', true).maybeSingle()
   ]);
   allPilots = pilotsRes.data || [];
   allRaces = racesRes.data || [];
   allResults = resultsRes.data || [];
   allAdjustments = adjRes.data || [];
+  activeMedalSeries = msRes.data || null;
 }
 
 // ===== CHAMPIONSHIP FORM =====
@@ -2024,4 +2027,81 @@ async function deleteGlobalDate(id) {
   await renderGlobalDatesList();
   loadCountdownBanner();
   showToast('Fecha eliminada', 'success');
+}
+// ===== MEDAL SERIES =====
+
+let currentMedalSeries = null;
+
+async function showMedalSeriesModal() {
+  // Cargar config existente
+  const { data: ms } = await db.from('medal_series')
+    .select('*').eq('championship_id', currentChampId).eq('active', true).maybeSingle();
+  currentMedalSeries = ms || null;
+
+  // Poblar selector de "hasta qué regata"
+  const sel = document.getElementById('ms-qualifier-until');
+  sel.innerHTML = '';
+  for (let i = 1; i <= currentChampData.total_races; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `Regata ${i}`;
+    sel.appendChild(opt);
+  }
+
+  const configBox = document.getElementById('ms-current-config');
+  const deleteBtn = document.getElementById('ms-delete-btn');
+
+  if (ms) {
+    sel.value = ms.qualifier_until;
+    document.getElementById('ms-num-races').value = ms.num_medal_races;
+    configBox.style.display = '';
+    configBox.innerHTML = `<strong>Medal Series activa:</strong> clasificación hasta regata ${ms.qualifier_until}, ${ms.num_medal_races} regata(s) medal.`;
+    deleteBtn.style.display = '';
+  } else {
+    document.getElementById('ms-num-races').value = '';
+    configBox.style.display = 'none';
+    deleteBtn.style.display = 'none';
+  }
+
+  showModal('modal-medal-series');
+}
+
+async function saveMedalSeries() {
+  const qualifierUntil = parseInt(document.getElementById('ms-qualifier-until').value);
+  const numRaces = parseInt(document.getElementById('ms-num-races').value);
+
+  if (!qualifierUntil || !numRaces) { showToast('Completá ambos campos', 'error'); return; }
+  if (numRaces < 1) { showToast('La cantidad de regatas medal debe ser al menos 1', 'error'); return; }
+
+  const payload = {
+    championship_id: currentChampId,
+    qualifier_until: qualifierUntil,
+    num_medal_races: numRaces,
+    active: true
+  };
+
+  let error;
+  if (currentMedalSeries) {
+    ({ error } = await db.from('medal_series').update(payload).eq('id', currentMedalSeries.id));
+  } else {
+    ({ error } = await db.from('medal_series').insert(payload));
+  }
+
+  if (error) { showToast('Error al guardar Medal Series', 'error'); return; }
+
+  closeModal('modal-medal-series');
+  showToast('Medal Series configurada', 'success');
+  await loadChampData();
+  renderResultsTable();
+}
+
+async function deleteMedalSeries() {
+  if (!confirm('¿Desactivar la Medal Series? Las regatas cargadas no se borran, pero la tabla vuelve a la clasificación normal.')) return;
+  if (currentMedalSeries) {
+    await db.from('medal_series').update({ active: false }).eq('id', currentMedalSeries.id);
+  }
+  closeModal('modal-medal-series');
+  showToast('Medal Series desactivada', 'success');
+  await loadChampData();
+  renderResultsTable();
 }
