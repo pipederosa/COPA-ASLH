@@ -2257,3 +2257,71 @@ function computeMedalSeriesTable() {
 
   return { table, medalRaces, n, k, qualifierUntil };
 }
+
+function renderMedalSeriesTableHTML() {
+  const data = computeMedalSeriesTable();
+  if (!data) return '<div class="empty-state"><p>Error al calcular la Medal Series.</p></div>';
+
+  const { table, medalRaces, n, k, qualifierUntil } = data;
+
+  const raceHeaders = medalRaces.map((race, i) => {
+    return `<th style="color:#C8880A">M${i+1}</th>`;
+  }).join('');
+
+  const rows = table.map((p, rank) => {
+    const posLabel = rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `${rank+1}°`;
+    const posClass = rank === 0 ? 'pos-1' : rank === 1 ? 'pos-2' : rank === 2 ? 'pos-3' : '';
+
+    const cells = medalRaces.map(race => {
+      const raceData = p.medalPts.find(pt => pt.race.id === race.id);
+      if (!raceData) return `<td style="color:var(--text-light)">—</td>`;
+      const st = raceData.status;
+      let content;
+      if (st === 'DNS') content = `<span class="cell-dns">DNS</span>`;
+      else if (st === 'DNF') content = `<span class="cell-dnf">DNF</span>`;
+      else if (st === 'OCS') content = `<span class="cell-ocs">OCS</span>`;
+      else if (st === 'DSQ') content = `<span class="cell-dns">DSQ</span>`;
+      else if (st === 'RET') content = `<span class="cell-dnf">RET</span>`;
+      else content = raceData.position;
+      return `<td>${content}</td>`;
+    }).join('');
+
+    const adjLabel = p.adjMedal ? (p.adjMedal>0?'+':'')+p.adjMedal : '—';
+
+    return `<tr>
+      <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
+      <td>${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
+      <td style="font-weight:600;color:#B07000">${p.startNet}</td>
+      ${cells}
+      <td style="text-align:center;font-size:12px;color:${(p.adjMedal||0)>0?'#991B1B':(p.adjMedal||0)<0?'#166534':'var(--text-light)'}">${adjLabel}</td>
+      <td class="pts-net">${p.total}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="background:#FEF9EC;border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:1rem;font-size:13px;color:#92400E">
+      <strong>Medal Series</strong> — Clasificación congelada hasta la regata ${qualifierUntil} · ${k} regata(s) medal · ${n} participantes.
+      La columna <strong>INI</strong> es el puntaje de arranque ajustado.
+    </div>
+    <div class="results-wrap">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Participante</th>
+            <th style="color:#B07000">INI</th>
+            ${raceHeaders}
+            <th style="color:#B07A17">ADJ</th>
+            <th>TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="table-legend">
+      <strong style="color:#B07000">INI</strong> puntaje inicial (carry-over) ·
+      <strong style="color:#C8880A">M1, M2...</strong> regatas medal ·
+      <strong>ADJ</strong> ajustes medal series ·
+      Los empates se definen por la última regata medal.
+    </div>`;
+}
