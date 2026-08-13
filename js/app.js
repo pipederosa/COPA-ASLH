@@ -331,6 +331,7 @@ function onRaceSelectChange() {
   document.getElementById('race-double').checked = existing ? existing.is_double : false;
   document.getElementById('race-nodiscard').checked = existing ? existing.no_discard : false;
   document.getElementById('race-medal').checked = existing ? (existing.is_medal_race || false) : false;
+  document.getElementById('race-ms').checked = existing ? (existing.is_medal_series || false) : false;
   
 
   const cd = currentChampData;
@@ -465,6 +466,7 @@ async function saveRaceResults() {
   const isDouble = document.getElementById('race-double').checked;
   const noDiscard = document.getElementById('race-nodiscard').checked;
   const isMedal = document.getElementById('race-medal').checked;
+  const isMedalSeries = document.getElementById('race-ms') ? document.getElementById('race-ms').checked : false;
   const pCount = allPilots.length;
   const penaltyPts = pCount + 1;
 
@@ -502,12 +504,12 @@ async function saveRaceResults() {
   let raceId;
   const existingRace = allRaces.find(r => r.race_number === n);
   if (existingRace) {
-    const { error } = await db.from('races').update({ is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal }).eq('id', existingRace.id);
+    const { error } = await db.from('races').update({ is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal, is_medal_series: isMedalSeries }).eq('id', existingRace.id);
     if (error) { showToast('Error al guardar configuración de regata', 'error'); return; }
     raceId = existingRace.id;
   } else {
     const { data, error } = await db.from('races').insert({
-      championship_id: currentChampId, race_number: n, is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal
+      championship_id: currentChampId, race_number: n, is_double: isDouble, no_discard: noDiscard, is_medal_race: isMedal, is_medal_series: isMedalSeries
     }).select().single();
     if (error) { showToast('Error al guardar regata', 'error'); return; }
     raceId = data.id;
@@ -783,6 +785,7 @@ async function editRace(raceNum) {
   const sel = document.getElementById('race-num-select');
   if (!sel.querySelector(`option[value="${raceNum}"]`)) await showLoadRaceModal();
   sel.value = raceNum;
+  document.getElementById('race-ms-label').style.display = activeMedalSeries ? 'flex' : 'none';
   onRaceSelectChange();
   showModal('modal-race');
 }
