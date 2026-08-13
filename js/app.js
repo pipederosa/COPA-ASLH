@@ -183,6 +183,7 @@ async function openChampionship(id) {
   document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===0));
   await loadChampData();
   renderResultsTable();
+  document.getElementById('btn-ms-adjustments').style.display = activeMedalSeries ? '' : 'none';
 }
 
 async function loadChampData() {
@@ -1277,10 +1278,11 @@ async function showAdjustmentsModal() {
 
 function renderAdjustmentsList() {
   const el = document.getElementById('adj-list');
-  if (!allAdjustments.length) { el.innerHTML = '<div style="color:var(--text-light);font-size:13px">Sin ajustes aún.</div>'; return; }
+  const normalAdjs = allAdjustments.filter(a => !a.is_medal_series);
+  if (!normalAdjs.length) { el.innerHTML = '<div style="color:var(--text-light);font-size:13px">Sin ajustes aún.</div>'; return; }
   el.innerHTML = `
     <div style="font-size:12px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Ajustes cargados</div>
-    ${allAdjustments.map(a => {
+    ${normalAdjs.map(a => {
       const pilot = allPilots.find(p => p.id === a.pilot_id);
       const isPos = a.points > 0;
       return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">
@@ -2322,4 +2324,61 @@ function renderMedalSeriesTableHTML() {
       <strong>ADJ</strong> ajustes medal series ·
       Los empates se definen por la última regata medal.
     </div>`;
+}
+
+// ===== MEDAL SERIES: ajustes de puntos =====
+
+async function showMedalAdjustmentsModal() {
+  await loadChampData();
+  const sel = document.getElementById('msadj-pilot');
+  sel.innerHTML = allPilots.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  document.getElementById('msadj-points').value = '';
+  document.getElementById('msadj-reason').value = '';
+  renderMedalAdjustmentsList();
+  showModal('modal-ms-adjustments');
+}
+
+function renderMedalAdjustmentsList() {
+  const el = document.getElementById('msadj-list');
+  const msAdjs = allAdjustments.filter(a => a.is_medal_series);
+  if (!msAdjs.length) { el.innerHTML = '<div style="color:var(--text-light);font-size:13px">Sin ajustes aún.</div>'; return; }
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Ajustes Medal Series</div>
+    ${msAdjs.map(a => {
+      const pilot = allPilots.find(p => p.id === a.pilot_id);
+      const isPos = a.points > 0;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="flex:1;font-weight:500">${pilot ? esc(pilot.name) : '?'}</span>
+        <span style="font-size:13px;color:#555">${esc(a.reason)}</span>
+        <span style="font-weight:600;color:${isPos?'#991B1B':'#166534'};min-width:36px;text-align:right">${isPos?'+':''}${a.points}</span>
+        <button class="btn btn-sm btn-danger" onclick="deleteMedalAdjustment('${a.id}')">x</button>
+      </div>`;
+    }).join('')}`;
+}
+
+async function addMedalAdjustment() {
+  const pilotId = document.getElementById('msadj-pilot').value;
+  const points = parseFloat(document.getElementById('msadj-points').value);
+  const reason = document.getElementById('msadj-reason').value.trim();
+  if (!pilotId || isNaN(points) || !reason) { showToast('Completá todos los campos', 'error'); return; }
+  const { error } = await db.from('point_adjustments').insert({
+    championship_id: currentChampId, pilot_id: pilotId, points, reason, is_medal_series: true
+  });
+  if (error) { showToast('Error al guardar ajuste', 'error'); return; }
+  document.getElementById('msadj-points').value = '';
+  document.getElementById('msadj-reason').value = '';
+  await loadChampData();
+  renderMedalAdjustmentsList();
+  renderResultsTable();
+  showToast('Ajuste guardado', 'success');
+}
+
+async function deleteMedalAdjustment(id) {
+  if (!confirm('¿Eliminar este ajuste?')) return;
+  const { error } = await db.from('point_adjustments').delete().eq('id', id);
+  if (error) { showToast('Error al eliminar', 'error'); return; }
+  await loadChampData();
+  renderMedalAdjustmentsList();
+  renderResultsTable();
+  showToast('Ajuste eliminado', 'success');
 }
