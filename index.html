@@ -81,6 +81,7 @@
         <button class="btn btn-sm" onclick="showAdjustmentsModal()">Ajustes de puntos</button>
         <button class="btn btn-sm btn-accent" onclick="showLoadRaceModal()">Cargar regata</button>
         <button class="btn btn-sm" onclick="showTeamRaceModal()" style="border-color:rgba(232,160,32,0.5);color:#C8880A">Regata por equipos</button>
+        <button class="btn btn-sm" onclick="showMedalSeriesModal()" style="border-color:rgba(184,112,0,0.5);color:#B07000;font-weight:600">Medal Series</button>
         <button class="btn btn-sm btn-danger" onclick="deleteCurrentChampionship()">Eliminar campeonato</button>
       </div>
     </div>
@@ -495,6 +496,34 @@
   </div>
 </div>
 
+<!-- Modal Medal Series -->
+<div id="modal-medal-series" class="modal-overlay" onclick="closeModalOutside(event,'modal-medal-series')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Configurar Medal Series</h2>
+      <button class="modal-close" onclick="closeModal('modal-medal-series')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box">La clasificación se congela hasta la regata elegida. Se crea una tabla Medal Series donde los competidores arrancan con un puntaje ajustado y se corren las regatas medal.</div>
+      <div class="row2">
+        <div class="field">
+          <label>Clasificación hasta la regata N°</label>
+          <select id="ms-qualifier-until"></select>
+        </div>
+        <div class="field">
+          <label>Cantidad de regatas Medal Series</label>
+          <input type="number" id="ms-num-races" min="1" max="15" placeholder="Ej: 3">
+        </div>
+      </div>
+      <div id="ms-current-config" style="display:none;background:#FEF9EC;border-radius:6px;padding:.75rem;font-size:13px;margin-bottom:.5rem"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-accent w-full" onclick="saveMedalSeries()">Guardar / Actualizar</button>
+        <button class="btn btn-danger" id="ms-delete-btn" onclick="deleteMedalSeries()" style="display:none;white-space:nowrap">Desactivar</button>
+      </div>
+    </div>
+  </div>
+</div>
+  
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
