@@ -2105,3 +2105,111 @@ async function deleteMedalSeries() {
   await loadChampData();
   renderResultsTable();
 }
+
+// ===== MEDAL SERIES: cálculo de la tabla =====
+
+// Calcula el puntaje inicial (carry-over) en cascada
+function computeMedalStartPoints(qualifierRanking, n, k) {
+  // qualifierRanking: array ordenado [{pilot, net}] con el neto hasta la regata clasificatoria
+  // n = cantidad de participantes, k = cantidad de regatas medal
+  const result = [];
+  for (let i = 0; i < qualifierRanking.length; i++) {
+    const orig = qualifierRanking[i].net;
+    if (i === 0) {
+      // 1ro: su puntaje tal cual
+      result.push({ ...qualifierRanking[i], startNet: orig });
+    } else if (i <= 2) {
+      // 2do y 3ro: su puntaje, o el del anterior ajustado + (n-1) si está a más de (n-1)
+      const prevStart = result[i-1].startNet;
+      const cap = prevStart + (n - 1);
+      result.push({ ...qualifierRanking[i], startNet: Math.min(orig, cap) });
+    } else {
+      // 4to en adelante: cascada respecto al anterior ajustado + (n-1),
+      // pero con tope global: puntaje del 3ro ya procesado + (n-1)*k
+      const prevStart = result[i-1].startNet;
+      const cap = prevStart + (n - 1);
+      const thirdStart = result[2] ? result[2].startNet : prevStart;
+      const globalCap = thirdStart + (n - 1) * k;
+      result.push({ ...qualifierRanking[i], startNet: Math.min(orig, cap, globalCap) });
+    }
+  }
+  return result;
+}
+
+// Calcula la clasificación (neto) hasta una regata específica, con desempate por medal race
+function computeRankingUntilRace(raceNumberMax) {
+  const racesUpTo = allRaces.filter(r => r.race_number <= raceNumberMax && !r.is_medal_series);
+  const maxRace = racesUpTo.length ? Math.max(...racesUpTo.map(r => r.race_number)) : 0;
+  const activeD = getActiveDiscards(maxRace, currentChampData);
+  const medalRace = racesUpTo.find(r => r.is_medal_race);
+
+  const scores = allPilots.map(pilot => {
+    const pts = racesUpTo.map(race => {
+      const res = allResults.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+      return res ? { race, pts: res.points } : null;
+    }).filter(Boolean);
+    const gross = pts.reduce((a,p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
+    const discardable = pts.filter(p => !p.race.no_discard);
+    let discarded = [];
+    if (activeD > 0 && discardable.length) {
+      [...discardable].sort((a,b)=>(b.race.is_double?b.pts*2:b.pts)-(a.race.is_double?a.pts*2:a.pts))
+        .slice(0, activeD).forEach(p => discarded.push(p.race.id));
+    }
+    const raceNet = pts.filter(p=>!discarded.includes(p.race.id)).reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+    // Solo ajustes NO medal series (los de la clasificación)
+    const adjTotal = allAdjustments.filter(a=>a.pilot_id===pilot.id && !a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+    let medalPos = 9999;
+    if (medalRace) {
+      const mr = allResults.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
+      if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
+    }
+    return { pilot, net: raceNet + adjTotal, gross, medalPos };
+  });
+
+  return scores.sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
+}
+
+// Calcula la tabla completa de la Medal Series
+function computeMedalSeriesTable() {
+  if (!activeMedalSeries) return null;
+
+  const n = allPilots.length;
+  const k = activeMedalSeries.num_medal_races;
+  const qualifierUntil = activeMedalSeries.qualifier_until;
+
+  // 1. Ranking clasificatorio (hasta la regata elegida)
+  const qualifierRanking = computeRankingUntilRace(qualifierUntil);
+
+  // 2. Puntaje inicial en cascada
+  const withStart = computeMedalStartPoints(qualifierRanking, n, k);
+
+  // 3. Regatas de la medal series (marcadas con is_medal_series)
+  const medalRaces = allRaces.filter(r => r.is_medal_series).sort((a,b) => a.race_number - b.race_number);
+
+  // 4. Sumar puntos de las regatas medal + ajustes medal series
+  const lastMedalRace = medalRaces.length ? medalRaces[medalRaces.length - 1] : null;
+
+  const table = withStart.map(entry => {
+    const pilot = entry.pilot;
+    const medalPts = medalRaces.map(race => {
+      const res = allResults.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+      return res ? { race, pts: res.points, status: res.status, position: res.position } : null;
+    }).filter(Boolean);
+    const medalSum = medalPts.reduce((a,p) => a + p.pts, 0);
+    const adjMedal = allAdjustments.filter(a => a.pilot_id === pilot.id && a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+    const total = entry.startNet + medalSum + adjMedal;
+
+    // Posición en la última regata medal (para desempate)
+    let lastPos = 9999;
+    if (lastMedalRace) {
+      const lr = allResults.find(r => r.race_id === lastMedalRace.id && r.pilot_id === pilot.id);
+      if (lr && !PENALTIES.includes(lr.status)) lastPos = lr.position;
+    }
+
+    return { pilot, startNet: entry.startNet, medalPts, medalSum, adjMedal, total, lastPos };
+  });
+
+  table.sort((a,b) => a.total - b.total || a.lastPos - b.lastPos);
+
+  return { table, medalRaces, n, k, qualifierUntil };
+}
