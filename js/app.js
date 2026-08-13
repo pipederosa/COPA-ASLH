@@ -2127,12 +2127,7 @@ async function saveMedalSeries() {
     active: true
   };
 
-  let error;
-  if (currentMedalSeries) {
-    ({ error } = await db.from('medal_series').update(payload).eq('id', currentMedalSeries.id));
-  } else {
-    ({ error } = await db.from('medal_series').insert(payload));
-  }
+  const { error } = await db.from('medal_series').upsert(payload, { onConflict: 'championship_id' });
 
   if (error) { showToast('Error al guardar Medal Series', 'error'); return; }
 
