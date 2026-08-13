@@ -79,6 +79,7 @@
         <button class="btn btn-sm" onclick="showDatesModal()">Fechas</button>
         <button class="btn btn-sm" onclick="showPilotsModal()">Participantes</button>
         <button class="btn btn-sm" onclick="showAdjustmentsModal()">Ajustes de puntos</button>
+        <button class="btn btn-sm" id="btn-ms-adjustments" onclick="showMedalAdjustmentsModal()" style="display:none;color:#B07000">Ajustes Medal Series</button>
         <button class="btn btn-sm btn-accent" onclick="showLoadRaceModal()">Cargar regata</button>
         <button class="btn btn-sm" onclick="showTeamRaceModal()" style="border-color:rgba(232,160,32,0.5);color:#C8880A">Regata por equipos</button>
         <button class="btn btn-sm" onclick="showMedalSeriesModal()" style="border-color:rgba(184,112,0,0.5);color:#B07000;font-weight:600">Medal Series</button>
@@ -526,6 +527,36 @@
     </div>
   </div>
 </div>
+
+<!-- Modal ajustes Medal Series -->
+<div id="modal-ms-adjustments" class="modal-overlay" onclick="closeModalOutside(event,'modal-ms-adjustments')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Ajustes de puntos — Medal Series</h2>
+      <button class="modal-close" onclick="closeModal('modal-ms-adjustments')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box" style="margin-bottom:.5rem">Estos ajustes solo afectan la tabla Medal Series. Positivo = penalización, negativo = beneficio.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 80px 1fr;gap:8px;align-items:flex-end;margin-bottom:.75rem">
+        <div class="field" style="margin:0">
+          <label>Participante</label>
+          <select id="msadj-pilot"></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Puntos (+/-)</label>
+          <input type="number" id="msadj-points" placeholder="Ej: 3 o -2" step="0.5">
+        </div>
+        <div></div>
+        <div class="field" style="margin:0">
+          <label>Motivo</label>
+          <input type="text" id="msadj-reason" placeholder="Ej: Penalización">
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="addMedalAdjustment()">+ Agregar ajuste</button>
+      <div id="msadj-list" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>  
   
 <!-- Toast -->
 <div id="toast" class="toast"></div>
