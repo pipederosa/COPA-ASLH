@@ -588,6 +588,8 @@ function computeScores() {
 }
 
 // ===== RENDER RESULTS TABLE =====
+let resultsViewMode = 'normal'; // 'normal' o 'medal'
+
 function renderResultsTable() {
   const container = document.getElementById('results-container');
   if (!allPilots.length || !allRaces.length) {
@@ -595,10 +597,50 @@ function renderResultsTable() {
     return;
   }
 
+  // Si hay medal series activa, mostrar toggle
+  if (activeMedalSeries) {
+    const toggle = `
+      <div style="display:flex;gap:0;margin-bottom:1rem;border:1px solid var(--border-mid);border-radius:var(--radius);overflow:hidden;width:fit-content">
+        <button onclick="setResultsView('normal')" style="padding:7px 16px;font-size:13px;border:none;cursor:pointer;background:${resultsViewMode==='normal'?'var(--navy)':'var(--white)'};color:${resultsViewMode==='normal'?'white':'var(--text)'}">Clasificación</button>
+        <button onclick="setResultsView('medal')" style="padding:7px 16px;font-size:13px;border:none;cursor:pointer;background:${resultsViewMode==='medal'?'#C8880A':'var(--white)'};color:${resultsViewMode==='medal'?'white':'var(--text)'};font-weight:600">Medal Series</button>
+      </div>`;
+
+    if (resultsViewMode === 'medal') {
+      container.innerHTML = toggle + renderMedalSeriesTableHTML();
+      return;
+    } else {
+      // Mostrar clasificación congelada (solo hasta qualifier_until)
+      container.innerHTML = toggle + renderNormalTableHTML(activeMedalSeries.qualifier_until);
+      return;
+    }
+  }
+
+  container.innerHTML = renderNormalTableHTML(null);
+}
+
+function setResultsView(mode) {
+  resultsViewMode = mode;
+  renderResultsTable();
+}
+
+  }
+
+function renderNormalTableHTML(maxRaceLimit) {
   const { pilotData, loadedRaceNums, activeDiscards, hasMedalRace } = computeScores();
   const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
 
-  const raceHeaders = loadedRaceNums.map(n => {
+  // Filtrar regatas si hay límite (medal series congela hasta cierta regata)
+  const shownRaceNums = maxRaceLimit
+    ? loadedRaceNums.filter(n => {
+        const race = allRaces.find(r => r.race_number === n);
+        return n <= maxRaceLimit && !race.is_medal_series;
+      })
+    : loadedRaceNums.filter(n => {
+        const race = allRaces.find(r => r.race_number === n);
+        return !race.is_medal_series;
+      });
+
+  const raceHeaders = shownRaceNums.map(n => {
     const race = allRaces.find(r => r.race_number === n);
     const cls = (race.is_double ? 'th-double ' : '') + (race.no_discard ? 'th-nodiscard' : '');
     const teamTag = race.is_team_race ? '<sup style="font-size:9px;color:#E8A020;margin-left:1px">EQ</sup>' : '';
@@ -610,7 +652,7 @@ function renderResultsTable() {
     const posLabel = rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `${rank+1}°`;
     const posClass = rank === 0 ? 'pos-1' : rank === 1 ? 'pos-2' : rank === 2 ? 'pos-3' : '';
 
-    const cells = loadedRaceNums.map(n => {
+    const cells = shownRaceNums.map(n => {
       const race = allRaces.find(r => r.race_number === n);
       const raceData = p.pts.find(pt => pt.race.race_number === n);
       if (!raceData) return `<td style="color:var(--text-light)">—</td>`;
@@ -639,18 +681,24 @@ function renderResultsTable() {
       return `<td class="${isDiscard ? 'cell-discard' : ''}">${content}</td>`;
     }).join('');
 
+    // Recalcular gross/net solo con las regatas mostradas
+    let showGross = 0, showNet = 0;
+    const shownPts = p.pts.filter(pt => shownRaceNums.includes(pt.race.race_number));
+    showGross = shownPts.reduce((a,pt)=>a+(pt.race.is_double?pt.pts*2:pt.pts),0);
+    showNet = shownPts.filter(pt=>!p.discarded.includes(pt.race.id)).reduce((a,pt)=>a+(pt.race.is_double?pt.pts*2:pt.pts),0) + (p.adjTotal||0);
+
     return `<tr>
       <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
       <td>${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
       ${cells}
-      <td class="pts-gross">${p.gross}</td>
-      <td style="text-align:center;font-size:12px;cursor:${(p.adjTotal||0)!==0?'help':'default'};color:${(p.adjTotal||0)>0?'#991B1B':(p.adjTotal||0)<0?'#166534':'var(--text-light)'}" title="${allAdjustments.filter(a=>a.pilot_id===p.pilot.id).map(a=>(a.points>0?'+':'')+a.points+' '+a.reason).join(' | ')||'Sin ajustes'}">
+      <td class="pts-gross">${showGross}</td>
+      <td style="text-align:center;font-size:12px;cursor:${(p.adjTotal||0)!==0?'help':'default'};color:${(p.adjTotal||0)>0?'#991B1B':(p.adjTotal||0)<0?'#166534':'var(--text-light)'}" title="${allAdjustments.filter(a=>a.pilot_id===p.pilot.id && !a.is_medal_series).map(a=>(a.points>0?'+':'')+a.points+' '+a.reason).join(' | ')||'Sin ajustes'}">
         ${p.adjTotal ? (p.adjTotal>0?'+':'')+p.adjTotal : '—'}</td>
-      <td class="pts-net">${p.net}</td>
+      <td class="pts-net">${showNet}</td>
     </tr>`;
   }).join('');
 
-  container.innerHTML = `
+  return `
     <div class="results-wrap">
       <table class="results-table">
         <thead>
@@ -675,16 +723,14 @@ function renderResultsTable() {
       <span class="cell-dns">DSQ</span> descalificado ·
       <span class="cell-dnf">RET</span> retirado ·
       <strong style="color:var(--accent)">×2</strong> regata doble ·
-      <strong>⊘</strong> no descartable ·
-      <span style="font-size:11px;font-weight:600;color:#1A6B8A">EQ</span> regata por equipos (+1 ganador / +3 perdedor)
+      <strong>⊘</strong> no descartable
       ${activeDiscards > 0 ? `· <em>(${activeDiscards} descarte(s) activo(s))</em>` : ''}
       ${hasMedalRace ? `· <strong style="color:#C8880A">MR</strong> los empates se definen por la Medal Race` : ''}
     </div>
     <div style="margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="exportExcel()">⬇ Exportar Excel</button>
       ${allAdjustments.length ? '<span style="font-size:12px;color:var(--text-light)">* Incluye ajustes de puntos</span>' : ''}
-    </div>
-  `;
+    </div>`;
 }
 
 // ===== RENDER DETAIL VIEW =====
