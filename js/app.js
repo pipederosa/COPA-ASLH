@@ -2959,3 +2959,85 @@ function avatarHTML(name) {
   }
   return `<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--foam);color:var(--sea);align-items:center;justify-content:center;font-size:9px;font-weight:600;vertical-align:middle;margin-right:6px">${initials(name)}</span>`;
 }
+
+// ===== ESTADÍSTICAS DE PARTICIPANTES =====
+
+// Calcula todas las estadísticas de una persona
+async function computePersonStats(person) {
+  // 1. Traer todos los campeonatos y anuales
+  const { data: allChamps } = await db.from('championships').select('*');
+  const { data: annuals } = await db.from('annual_config').select('*').order('sort_order');
+  const { data: annualLinks } = await db.from('annual_championships').select('*');
+  const { data: allPilotsData } = await db.from('pilots').select('championship_id, name, person_id');
+
+  if (!allChamps) return null;
+
+  // 2. Determinar en qué campeonatos participó esta persona
+  const myChampIds = new Set();
+  (allPilotsData || []).forEach(p => {
+    if (p.person_id === person.id) myChampIds.add(p.championship_id);
+    else if (!p.person_id && p.name === person.name) myChampIds.add(p.championship_id);
+  });
+
+  // 3. Calcular ranking final de cada campeonato donde participó y sacar su posición
+  const champResults = [];
+  for (const champId of myChampIds) {
+    const champ = allChamps.find(c => c.id === champId);
+    if (!champ) continue;
+    const ranking = await getChampFinalRanking(champ);
+    const totalParticipants = ranking.length;
+    const pos = ranking.findIndex(r => r.name === person.name) + 1;
+    if (pos > 0) {
+      champResults.push({ champ, position: pos, total: totalParticipants });
+    }
+  }
+
+  // 4. Estadísticas de posición (final en campeonatos)
+  const positions = champResults.map(r => r.position);
+  const bestPos = positions.length ? Math.min(...positions) : null;
+  const worstPos = positions.length ? Math.max(...positions) : null;
+  const avgPos = positions.length ? (positions.reduce((a,b)=>a+b,0) / positions.length) : null;
+
+  // 5. Medallero (podios en campeonatos)
+  const gold = champResults.filter(r => r.position === 1).length;
+  const silver = champResults.filter(r => r.position === 2).length;
+  const bronze = champResults.filter(r => r.position === 3).length;
+  const podiums = gold + silver + bronze;
+
+  // 6. Regatas ganadas (llegó 1° en una regata individual, no team/medal series)
+  let racesWon = 0;
+  for (const { champ } of champResults) {
+    const { data: races } = await db.from('races').select('*').eq('championship_id', champ.id);
+    const { data: results } = await db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', champ.id);
+    const { data: pilots } = await db.from('pilots').select('id, name, person_id').eq('championship_id', champ.id);
+    const myPilot = (pilots||[]).find(pl => pl.person_id === person.id || (!pl.person_id && pl.name === person.name));
+    if (!myPilot) continue;
+    (races||[]).filter(r => !r.is_team_race).forEach(race => {
+      const res = (results||[]).find(r => r.race_id === race.id && r.pilot_id === myPilot.id);
+      if (res && res.status === 'normal' && res.position === 1) racesWon++;
+    });
+  }
+
+  // 7. Presentismo global (de todos los campeonatos existentes)
+  const totalChampsAll = allChamps.length;
+  const presentismGlobal = { participated: champResults.length, total: totalChampsAll };
+
+  // 8. Presentismo por anual
+  const presentismByAnnual = (annuals || []).map(annual => {
+    const champIdsInAnnual = (annualLinks || []).filter(l => l.annual_id === annual.id).map(l => l.championship_id);
+    const participatedInAnnual = champIdsInAnnual.filter(cid => myChampIds.has(cid)).length;
+    return { annualTitle: annual.title, participated: participatedInAnnual, total: champIdsInAnnual.length };
+  }).filter(a => a.total > 0);
+
+  return {
+    person,
+    champResults: champResults.sort((a,b) => a.champ.name.localeCompare(b.champ.name)),
+    champsPlayed: champResults.length,
+    bestPos, worstPos, avgPos,
+    gold, silver, bronze, podiums,
+    wins: gold,
+    racesWon,
+    presentismGlobal,
+    presentismByAnnual
+  };
+}
