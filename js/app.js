@@ -69,7 +69,9 @@ async function logout() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('.header-nav .nav-btn').forEach(b => b.classList.remove('active'));
   if (name === 'home') { loadChampionships(); loadHomeExtras(); }
+  if (name === 'people') loadPeople();
 }
 
 function switchTab(tab) {
@@ -2647,4 +2649,96 @@ async function deleteSponsor(id, path) {
   if (error) { showToast('Error al eliminar', 'error'); return; }
   showToast('Sponsor eliminado', 'success');
   loadSponsors();
+}
+
+// ===== PARTICIPANTES (PERSONAS GLOBALES) =====
+
+let editingPersonId = null;
+let personPhotoBlob = null;
+
+async function loadPeople() {
+  document.getElementById('btn-new-person').style.display = currentUser ? '' : 'none';
+  const container = document.getElementById('people-container');
+  container.innerHTML = '<div class="loading-state">Cargando participantes...</div>';
+
+  const { data: people } = await db.from('people').select('*').order('name', { ascending: true });
+  if (!people || !people.length) {
+    container.innerHTML = '<div class="empty-state"><p>No hay participantes cargados aún.</p></div>';
+    return;
+  }
+
+  // Para cada persona, buscar en qué campeonatos participó (por person_id o por nombre)
+  const cards = await Promise.all(people.map(async person => {
+    const history = await getPersonHistory(person);
+    return { person, history };
+  }));
+
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
+    ${cards.map(({person, history}) => renderPersonCard(person, history)).join('')}
+  </div>`;
+}
+
+function personPhotoUrl(person) {
+  if (!person.photo_path) return null;
+  return db.storage.from('people').getPublicUrl(person.photo_path).data.publicUrl;
+}
+
+function renderPersonCard(person, history) {
+  const url = personPhotoUrl(person);
+  const avatar = url
+    ? `<img src="${url}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    : `<div style="width:64px;height:64px;border-radius:50%;background:var(--foam);color:var(--sea);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;flex-shrink:0">${initials(person.name)}</div>`;
+
+  const stats = [];
+  if (person.age) stats.push(`${person.age} años`);
+  if (person.height_cm) stats.push(`${person.height_cm} cm`);
+  if (person.weight_kg) stats.push(`${person.weight_kg} kg`);
+
+  const historyHTML = history.length
+    ? history.map(h => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;padding:2px 0">
+        <span style="color:var(--accent-dark)">${h.position===1?'🥇':h.position===2?'🥈':h.position===3?'🥉':h.position+'°'}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.champName)}</span>
+      </div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-light)">Sin campeonatos aún</div>';
+
+  return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:.75rem">
+      ${avatar}
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--navy)">${esc(person.name)}</div>
+        ${stats.length ? `<div style="font-size:12px;color:var(--text-mid)">${stats.join(' · ')}</div>` : ''}
+        ${person.notes ? `<div style="font-size:12px;color:var(--text-light)">${esc(person.notes)}</div>` : ''}
+      </div>
+      ${currentUser ? `<button class="btn btn-sm" onclick="showPersonModal('${person.id}')" style="font-size:11px">Editar</button>` : ''}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:.5rem">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin-bottom:4px">Historial</div>
+      ${historyHTML}
+    </div>
+  </div>`;
+}
+
+// Busca en qué campeonatos participó (por person_id o por nombre) y su posición final
+async function getPersonHistory(person) {
+  // Pilots vinculados por person_id o por nombre
+  const { data: linkedPilots } = await db.from('pilots').select('championship_id, name, person_id');
+  if (!linkedPilots) return [];
+
+  const myChampIds = new Set();
+  linkedPilots.forEach(p => {
+    if (p.person_id === person.id) myChampIds.add(p.championship_id);
+    else if (!p.person_id && p.name === person.name) myChampIds.add(p.championship_id);
+  });
+  if (!myChampIds.size) return [];
+
+  const { data: champs } = await db.from('championships').select('*').in('id', [...myChampIds]);
+  if (!champs) return [];
+
+  const history = [];
+  for (const champ of champs) {
+    const ranking = await getChampFinalRanking(champ);
+    const pos = ranking.findIndex(r => r.name === person.name) + 1;
+    history.push({ champName: champ.name, position: pos > 0 ? pos : '—' });
+  }
+  return history;
 }
