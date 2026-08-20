@@ -2742,3 +2742,92 @@ async function getPersonHistory(person) {
   }
   return history;
 }
+
+// ===== CRUD de personas =====
+
+function showPersonModal(personId) {
+  editingPersonId = personId || null;
+  personPhotoBlob = null;
+  const preview = document.getElementById('person-photo-preview');
+  document.getElementById('person-photo').value = '';
+
+  if (personId) {
+    db.from('people').select('*').eq('id', personId).maybeSingle().then(({ data: p }) => {
+      if (!p) return;
+      document.getElementById('modal-person-title').textContent = 'Editar participante';
+      document.getElementById('person-name').value = p.name || '';
+      document.getElementById('person-age').value = p.age || '';
+      document.getElementById('person-height').value = p.height_cm || '';
+      document.getElementById('person-weight').value = p.weight_kg || '';
+      document.getElementById('person-notes').value = p.notes || '';
+      const url = personPhotoUrl(p);
+      preview.innerHTML = url ? `<img src="${url}" style="width:100%;height:100%;object-fit:cover">` : '👤';
+      document.getElementById('person-delete-btn').style.display = '';
+    });
+  } else {
+    document.getElementById('modal-person-title').textContent = 'Nuevo participante';
+    ['person-name','person-age','person-height','person-weight','person-notes'].forEach(id => document.getElementById(id).value = '');
+    preview.innerHTML = '👤';
+    document.getElementById('person-delete-btn').style.display = 'none';
+  }
+  showModal('modal-person');
+}
+
+async function previewPersonPhoto() {
+  const file = document.getElementById('person-photo').files[0];
+  if (!file) return;
+  try {
+    personPhotoBlob = await compressImage(file, 400, 0.8);
+    const url = URL.createObjectURL(personPhotoBlob);
+    document.getElementById('person-photo-preview').innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+  } catch (e) {
+    showToast('Error al procesar la foto', 'error');
+  }
+}
+
+async function savePerson() {
+  const name = document.getElementById('person-name').value.trim();
+  if (!name) { showToast('Ingresá el nombre', 'error'); return; }
+
+  const age = parseInt(document.getElementById('person-age').value) || null;
+  const height = parseInt(document.getElementById('person-height').value) || null;
+  const weight = parseFloat(document.getElementById('person-weight').value) || null;
+  const notes = document.getElementById('person-notes').value.trim() || null;
+
+  let photoPath = undefined; // undefined = no cambiar
+
+  // Si hay foto nueva, subirla
+  if (personPhotoBlob) {
+    const path = 'person_' + Date.now() + '.webp';
+    const { error: upErr } = await db.storage.from('people').upload(path, personPhotoBlob, { contentType: 'image/webp' });
+    if (upErr) { showToast('Error al subir la foto', 'error'); return; }
+    photoPath = path;
+  }
+
+  const payload = { name, age, height_cm: height, weight_kg: weight, notes };
+  if (photoPath !== undefined) payload.photo_path = photoPath;
+
+  let error;
+  if (editingPersonId) {
+    ({ error } = await db.from('people').update(payload).eq('id', editingPersonId));
+  } else {
+    ({ error } = await db.from('people').insert(payload));
+  }
+
+  if (error) { showToast('Error al guardar', 'error'); return; }
+
+  closeModal('modal-person');
+  showToast('Participante guardado', 'success');
+  personPhotoBlob = null;
+  loadPeople();
+}
+
+async function deletePerson() {
+  if (!editingPersonId) return;
+  if (!confirm('¿Eliminar este participante? Se quitará su ficha global (no afecta los resultados de los campeonatos).')) return;
+  const { error } = await db.from('people').delete().eq('id', editingPersonId);
+  if (error) { showToast('Error al eliminar', 'error'); return; }
+  closeModal('modal-person');
+  showToast('Participante eliminado', 'success');
+  loadPeople();
+}
