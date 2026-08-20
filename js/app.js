@@ -3125,7 +3125,7 @@ function renderStatsTable() {
       <td>${s.worstPos ?? '—'}</td>
       <td>${s.avgPos != null ? s.avgPos.toFixed(1) : '—'}</td>
       <td>${s.racesWon}</td>
-      <td>${s.presentismGlobal.participated}/${s.presentismGlobal.total} (${pres}%)</td>
+      <td style="font-weight:700;color:${presentismColor(pres)}">${s.presentismGlobal.participated}/${s.presentismGlobal.total} (${pres}%)</td>
     </tr>`;
   }).join('');
 
@@ -3170,7 +3170,7 @@ async function showPersonStatsDetail(personId) {
     const pct = a.total ? Math.round(a.participated/a.total*100) : 0;
     return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px">
       <span style="flex:1">${esc(a.annualTitle)}</span>
-      <span style="color:var(--sea);font-weight:500">${a.participated}/${a.total} (${pct}%)</span>
+      <span style="font-weight:700;color:${presentismColor(pct)}">${a.participated}/${a.total} (${pct}%)</span>
     </div>`;
   }).join('');
 
@@ -3181,7 +3181,12 @@ async function showPersonStatsDetail(personId) {
     </div>`;
 
   const presGlobalPct = s.presentismGlobal.total ? Math.round(s.presentismGlobal.participated/s.presentismGlobal.total*100) : 0;
-
+    const statBoxColor = (label, value, color) => `
+    <div style="background:var(--off-white);border-radius:var(--radius);padding:.6rem .8rem;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:${color};font-family:var(--font-head)">${value}</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-light)">${label}</div>
+    </div>`;
+  
   body.innerHTML = `
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:1rem">
       ${avatar}
@@ -3202,7 +3207,7 @@ async function showPersonStatsDetail(personId) {
       ${statBox('Mejor pos.', s.bestPos ?? '—')}
       ${statBox('Peor pos.', s.worstPos ?? '—')}
       ${statBox('Promedio', s.avgPos != null ? s.avgPos.toFixed(1) : '—')}
-      ${statBox('Presentismo', presGlobalPct + '%')}
+      ${statBoxColor('Presentismo', presGlobalPct + '%', presentismColor(presGlobalPct))}
     </div>
 
     <div style="margin-bottom:1rem">
@@ -3236,4 +3241,10 @@ async function goToPersonStats(personId) {
     await loadStatsTable();
   }
   showPersonStatsDetail(personId);
+}
+
+function presentismColor(pct) {
+  if (pct >= 70) return '#166534';   // verde
+  if (pct >= 50) return '#B08800';   // amarillo/dorado
+  return '#991B1B';                   // rojo
 }
