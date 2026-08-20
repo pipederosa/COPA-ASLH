@@ -208,6 +208,8 @@ async function loadChampData() {
   allResults = resultsRes.data || [];
   allAdjustments = adjRes.data || [];
   activeMedalSeries = msRes.data || null;
+  await loadPeoplePhotoMap();
+}
 }
 
 // ===== CHAMPIONSHIP FORM =====
@@ -700,7 +702,7 @@ function renderNormalTableHTML(maxRaceLimit) {
 
     return `<tr>
       <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
-      <td>${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
+      <td style="white-space:nowrap">${avatarHTML(p.pilot.name)}${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
       ${cells}
       <td class="pts-gross">${showGross}</td>
       <td style="text-align:center;font-size:12px;cursor:${(p.adjTotal||0)!==0?'help':'default'};color:${(p.adjTotal||0)>0?'#991B1B':(p.adjTotal||0)<0?'#166534':'var(--text-light)'}" title="${allAdjustments.filter(a=>a.pilot_id===p.pilot.id && !a.is_medal_series).map(a=>(a.points>0?'+':'')+a.points+' '+a.reason).join(' | ')||'Sin ajustes'}">
@@ -2232,7 +2234,7 @@ function renderMedalSeriesTableHTML() {
 
     return `<tr>
       <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
-      <td>${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
+      <td style="white-space:nowrap">${avatarHTML(p.pilot.name)}${esc(p.pilot.name)}${p.pilot.sail_number ? ` <span class="badge badge-sea" style="font-size:10px">${esc(p.pilot.sail_number)}</span>` : ''}</td>
       <td style="font-weight:600;color:#B07000">${p.startNet}</td>
       ${cells}
       <td style="text-align:center;font-size:12px;color:${(p.adjMedal||0)>0?'#991B1B':(p.adjMedal||0)<0?'#166534':'var(--text-light)'}">${adjLabel}</td>
@@ -2830,4 +2832,27 @@ async function deletePerson() {
   closeModal('modal-person');
   showToast('Participante eliminado', 'success');
   loadPeople();
+}
+
+// ===== FOTOS DE PARTICIPANTES EN TABLAS =====
+
+let peoplePhotoMap = {}; // nombre -> url de foto
+
+async function loadPeoplePhotoMap() {
+  const { data: people } = await db.from('people').select('name, photo_path');
+  peoplePhotoMap = {};
+  (people || []).forEach(p => {
+    if (p.photo_path) {
+      peoplePhotoMap[p.name] = db.storage.from('people').getPublicUrl(p.photo_path).data.publicUrl;
+    }
+  });
+}
+
+// Devuelve el HTML del avatar (foto o iniciales) para usar en las tablas
+function avatarHTML(name) {
+  const url = peoplePhotoMap[name];
+  if (url) {
+    return `<img src="${url}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px" alt="">`;
+  }
+  return `<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--foam);color:var(--sea);align-items:center;justify-content:center;font-size:9px;font-weight:600;vertical-align:middle;margin-right:6px">${initials(name)}</span>`;
 }
