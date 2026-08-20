@@ -83,11 +83,39 @@
       </div>
       <button id="btn-new-person" class="btn btn-accent" onclick="showPersonModal()" style="display:none">+ Nuevo participante</button>
     </div>
-    <div style="margin-bottom:1rem">
-      <input type="text" id="people-search" placeholder="Buscar por nombre o nombre completo..." oninput="filterPeople()" style="max-width:400px">
+        <div class="tabs" style="margin-bottom:1.5rem">
+      <button class="tab active" onclick="switchPeopleTab('fichas', this)">Fichas</button>
+      <button class="tab" onclick="switchPeopleTab('stats', this)">Estadísticas</button>
     </div>
-    <div id="people-container">
-      <div class="loading-state">Cargando participantes...</div>
+
+    <div id="people-tab-fichas">
+      <div style="margin-bottom:1rem">
+        <input type="text" id="people-search" placeholder="Buscar por nombre o nombre completo..." oninput="filterPeople()" style="max-width:400px">
+      </div>
+      <div id="people-container">
+        <div class="loading-state">Cargando participantes...</div>
+      </div>
+    </div>
+
+    <div id="people-tab-stats" style="display:none">
+      <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
+        <div class="field" style="margin:0;min-width:220px">
+          <label>Ordenar por</label>
+          <select id="stats-sort" onchange="renderStatsTable()">
+            <option value="champsPlayed">Campeonatos disputados</option>
+            <option value="wins">Victorias</option>
+            <option value="podiums">Podios</option>
+            <option value="bestPos">Mejor posición</option>
+            <option value="worstPos">Peor posición</option>
+            <option value="avgPos">Promedio de posición</option>
+            <option value="racesWon">Regatas ganadas</option>
+            <option value="presentism">Presentismo global</option>
+          </select>
+        </div>
+      </div>
+      <div id="stats-container">
+        <div class="loading-state">Cargando estadísticas...</div>
+      </div>
     </div>
   </div>
   
@@ -658,6 +686,19 @@
         <button class="btn btn-accent w-full" onclick="savePerson()">Guardar</button>
         <button class="btn btn-danger" id="person-delete-btn" onclick="deletePerson()" style="display:none;white-space:nowrap">Eliminar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle de estadísticas -->
+<div id="modal-person-stats" class="modal-overlay" onclick="closeModalOutside(event,'modal-person-stats')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2 id="ps-title">Estadísticas</h2>
+      <button class="modal-close" onclick="closeModal('modal-person-stats')">x</button>
+    </div>
+    <div class="modal-body" id="ps-body">
+      <div class="loading-state">Cargando...</div>
     </div>
   </div>
 </div>
