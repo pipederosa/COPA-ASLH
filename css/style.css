@@ -373,6 +373,17 @@ input:focus, select:focus { outline: none; border-color: var(--sea); }
   .view-title { font-size: 26px; }
   .row2 { grid-template-columns: 1fr; }
   .champ-grid { grid-template-columns: 1fr; }
+
+  /* Header responsive */
+  .header-inner {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 1rem;
+  }
+  .logo-text { font-size: 18px; letter-spacing: 2px; }
+  .header-nav { gap: 6px; flex-wrap: wrap; }
+  .nav-btn { padding: 5px 10px; font-size: 12px; }
 }
 
 /* ===== PROTESTS ===== */
