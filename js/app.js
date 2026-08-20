@@ -1830,21 +1830,17 @@ async function renderAnnualCards(annuals) {
     ? `<button class="btn btn-sm" onclick="showAnnualAdminModal()" style="align-self:flex-start">+ Nuevo anual</button>`
     : '';
 
-  container.innerHTML = `
+    container.innerHTML = `
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem">${cardsHTML}</div>
-    ${newBtn}
-    <div id="annual-detail" style="margin-top:1.5rem"></div>`;
-
-  // Si hay uno seleccionado, mostrar su detalle
-  if (selectedAnnualId) {
-    const found = annuals.find(a => a.id === selectedAnnualId);
-    if (found) renderAnnualDetail(found);
-  }
+    ${newBtn}`;
 }
-
-function selectAnnual(id) {
-  selectedAnnualId = selectedAnnualId === id ? null : id;
-  loadAnnualStandings();
+async function selectAnnual(id) {
+  const { data: annual } = await db.from('annual_config').select('*').eq('id', id).maybeSingle();
+  if (!annual) return;
+  document.getElementById('annual-view-title').textContent = annual.title;
+  document.getElementById('annual-view-subtitle').textContent = 'Clasificación acumulada';
+  showView('annual');
+  await renderAnnualDetailFull(annual);
 }
 
 // ===== ANNUAL ADMIN MODAL =====
@@ -2457,8 +2453,8 @@ async function getChampFinalRanking(champ) {
   return table.map((e,i) => ({ name: e.name, position: i+1 }));
 }
 
-async function renderAnnualDetail(annual) {
-  const container = document.getElementById('annual-detail');
+async function renderAnnualDetailFull(annual) {
+  const container = document.getElementById('annual-view-container');
   if (!container) return;
   container.innerHTML = '<div class="loading-state">Cargando tabla anual...</div>';
 
@@ -2494,11 +2490,11 @@ async function renderAnnualDetail(annual) {
     </tr>`;
   }).join('');
 
-  container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem">
-      <h3 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--navy)">${esc(annual.title)}</h3>
+    container.innerHTML = `
+    <div style="margin-bottom:.75rem">
       <span class="badge badge-sea">${allChamps.length} campeonato(s)</span>
     </div>
+    <div style="overflow-x:auto">
     <div style="overflow-x:auto">
       <table class="annual-table">
         <thead><tr>
