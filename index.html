@@ -133,6 +133,28 @@
 
 </main>
 
+<!-- Franja de sponsors -->
+<div id="sponsors-bar" style="display:none;background:var(--white);border-top:1px solid var(--border);padding:1rem 0;overflow:hidden;margin-top:2rem">
+  <div style="max-width:1100px;margin:auto;padding:0 1.5rem">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-light);text-align:center;margin-bottom:.75rem">Sponsors</div>
+    <div id="sponsors-track" style="display:flex;gap:2rem;align-items:center;animation:sponsor-scroll 30s linear infinite"></div>
+  </div>
+</div>
+
+<!-- Admin sponsors (solo visible logueado) -->
+<div id="sponsors-admin" style="display:none;max-width:1100px;margin:1rem auto;padding:0 1.5rem">
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+      <span style="font-size:14px;font-weight:500;color:var(--navy)">Gestionar sponsors</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="file" id="sponsor-file" accept="image/*" style="font-size:12px;padding:4px">
+        <button class="btn btn-sm btn-accent" onclick="uploadSponsor()">Subir</button>
+      </div>
+    </div>
+    <div id="sponsors-admin-list" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+  </div>
+</div>
+  
 <!-- ===== MODALS ===== -->
 
 <!-- Modal login -->
