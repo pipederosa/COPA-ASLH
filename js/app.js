@@ -22,9 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     else handleLogout();
   });
 
-  loadChampionships();
   loadHomeExtras();
   loadSponsors();
+  restoreFromHash();
 });
 
 function handleSession(session) {
@@ -72,6 +72,7 @@ function showView(name) {
   document.querySelectorAll('.header-nav .nav-btn').forEach(b => b.classList.remove('active'));
   if (name === 'home') { loadChampionships(); loadHomeExtras(); }
   if (name === 'people') loadPeople();
+  updateHash();
 }
 
 function switchTab(tab) {
@@ -205,6 +206,7 @@ async function openChampionship(id) {
   await loadChampData();
   renderResultsTable();
   document.getElementById('btn-ms-adjustments').style.display = activeMedalSeries ? '' : 'none';
+  updateHash();
 }
 
 async function loadChampData() {
@@ -673,6 +675,7 @@ function renderResultsTable() {
 function setResultsView(mode) {
   resultsViewMode = mode;
   renderResultsTable();
+  updateHash();
 }
 
 function renderNormalTableHTML(maxRaceLimit) {
@@ -1916,6 +1919,7 @@ async function selectAnnual(id) {
   document.getElementById('annual-view-subtitle').textContent = 'Clasificación acumulada';
   showView('annual');
   await renderAnnualDetailFull(annual);
+  updateHash();
 }
 
 // ===== ANNUAL ADMIN MODAL =====
@@ -3307,4 +3311,41 @@ function compareByPositionCounts(countsA, countsB) {
     if (a !== b) return b - a; // más cantidad de esa posición gana (va primero)
   }
   return 0; // empate total
+}
+
+// ===== PERSISTENCIA DE NAVEGACIÓN (hash en URL) =====
+
+function updateHash() {
+  const active = document.querySelector('.view.active');
+  if (!active) return;
+  let hash = '';
+  if (active.id === 'view-home') hash = '';
+  else if (active.id === 'view-people') hash = '#people';
+  else if (active.id === 'view-champ' && currentChampId) hash = '#champ/' + currentChampId + (resultsViewMode ? '/' + resultsViewMode : '');
+  else if (active.id === 'view-annual' && selectedAnnualId) hash = '#annual/' + selectedAnnualId;
+  // Reemplazar sin agregar entrada al historial
+  history.replaceState(null, '', hash || location.pathname);
+}
+
+async function restoreFromHash() {
+  const hash = location.hash;
+  if (!hash || hash === '#') { showView('home'); return; }
+
+  const parts = hash.replace(/^#/, '').split('/');
+  const type = parts[0];
+
+  if (type === 'people') {
+    showView('people');
+  } else if (type === 'champ' && parts[1]) {
+    await openChampionship(parts[1]);
+    // Restaurar sub-vista (clasificación/medal) si venía
+    if (parts[2] && activeMedalSeries) {
+      resultsViewMode = parts[2];
+      renderResultsTable();
+    }
+  } else if (type === 'annual' && parts[1]) {
+    await selectAnnual(parts[1]);
+  } else {
+    showView('home');
+  }
 }
