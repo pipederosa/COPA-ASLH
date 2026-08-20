@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   loadChampionships();
   loadHomeExtras();
+  loadSponsors();
 });
 
 function handleSession(session) {
@@ -33,6 +34,7 @@ function handleSession(session) {
   document.getElementById('btn-new-champ').style.display = '';
   document.getElementById('champ-admin-btns').style.display = 'flex';
   document.getElementById('btn-manage-dates').style.display = '';
+  loadSponsors();
 }
 
 function handleLogout() {
@@ -42,6 +44,7 @@ function handleLogout() {
   document.getElementById('btn-new-champ').style.display = 'none';
   document.getElementById('champ-admin-btns').style.display = 'none';
   document.getElementById('btn-manage-dates').style.display = 'none';
+  loadSponsors();
 }
 
 // ===== AUTH =====
@@ -2536,4 +2539,112 @@ function renderChampCardsHTML(champs) {
         <button class="btn btn-sm btn-danger" onclick="deleteChampionship('${c.id}','${esc(c.name).replace(/'/g,"\\'")}')">Eliminar campeonato</button>
       </div>` : ''}
     </div>`).join('');
+}
+
+
+// ===== SPONSORS =====
+
+async function loadSponsors() {
+  const { data: sponsors } = await db.from('sponsors').select('*').order('sort_order', { ascending: true });
+  const bar = document.getElementById('sponsors-bar');
+  const track = document.getElementById('sponsors-track');
+
+  if (!sponsors || !sponsors.length) {
+    bar.style.display = 'none';
+  } else {
+    bar.style.display = '';
+    // Duplicamos la lista para que el scroll sea continuo
+    const imgs = sponsors.map(s => {
+      const url = db.storage.from('sponsors').getPublicUrl(s.image_path).data.publicUrl;
+      return `<img src="${url}" alt="${esc(s.name||'sponsor')}" title="${esc(s.name||'')}">`;
+    });
+    track.innerHTML = imgs.join('') + imgs.join(''); // duplicado para loop continuo
+  }
+
+  // Panel admin
+  renderSponsorsAdmin(sponsors || []);
+}
+
+function renderSponsorsAdmin(sponsors) {
+  const adminPanel = document.getElementById('sponsors-admin');
+  const list = document.getElementById('sponsors-admin-list');
+  if (!currentUser) { adminPanel.style.display = 'none'; return; }
+  adminPanel.style.display = '';
+
+  if (!sponsors.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-light)">Sin sponsors aún.</div>';
+    return;
+  }
+  list.innerHTML = sponsors.map(s => {
+    const url = db.storage.from('sponsors').getPublicUrl(s.image_path).data.publicUrl;
+    return `<div style="position:relative;border:1px solid var(--border);border-radius:var(--radius);padding:6px;background:var(--off-white)">
+      <img src="${url}" style="height:40px;width:auto;display:block">
+      <button onclick="deleteSponsor('${s.id}','${s.image_path}')" style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:white;border:none;cursor:pointer;font-size:12px;line-height:1">×</button>
+    </div>`;
+  }).join('');
+}
+
+// Comprime y redimensiona la imagen antes de subir
+function compressImage(file, maxHeight = 300, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxHeight / img.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error('No se pudo comprimir'));
+        }, 'image/webp', quality);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadSponsor() {
+  const fileInput = document.getElementById('sponsor-file');
+  const file = fileInput.files[0];
+  if (!file) { showToast('Seleccioná una imagen', 'error'); return; }
+  if (!file.type.startsWith('image/')) { showToast('El archivo debe ser una imagen', 'error'); return; }
+
+  showToast('Comprimiendo y subiendo...', '');
+
+  let blob;
+  try {
+    blob = await compressImage(file, 300, 0.8);
+  } catch (e) {
+    showToast('Error al procesar la imagen', 'error'); return;
+  }
+
+  const path = 'sponsor_' + Date.now() + '.webp';
+  const { error: upErr } = await db.storage.from('sponsors').upload(path, blob, { contentType: 'image/webp' });
+  if (upErr) { showToast('Error al subir: ' + upErr.message, 'error'); return; }
+
+  const { count } = await db.from('sponsors').select('*', { count: 'exact', head: true });
+  const { error: dbErr } = await db.from('sponsors').insert({
+    image_path: path, name: file.name.replace(/\.[^.]+$/, ''), sort_order: count || 0
+  });
+  if (dbErr) { showToast('Error al registrar sponsor', 'error'); return; }
+
+  fileInput.value = '';
+  showToast('Sponsor agregado', 'success');
+  loadSponsors();
+}
+
+async function deleteSponsor(id, path) {
+  if (!confirm('¿Eliminar este sponsor?')) return;
+  await db.storage.from('sponsors').remove([path]);
+  const { error } = await db.from('sponsors').delete().eq('id', id);
+  if (error) { showToast('Error al eliminar', 'error'); return; }
+  showToast('Sponsor eliminado', 'success');
+  loadSponsors();
 }
