@@ -252,10 +252,17 @@
       <button class="modal-close" onclick="closeModal('modal-pilots')">×</button>
     </div>
     <div class="modal-body">
-      <div style="display:flex;gap:8px;margin-bottom:1rem">
-        <input type="text" id="pilot-name-input" placeholder="Nombre del participante" style="flex:1" onkeydown="if(event.key==='Enter')addPilot()">
-        <input type="text" id="pilot-sail-input" placeholder="Vela N°" style="width:100px">
-        <button class="btn btn-accent" onclick="addPilot()">+ Agregar</button>
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <select id="pilot-person-select" style="flex:1" onchange="onPilotPersonSelect()">
+            <option value="">— Elegir participante global o escribir nuevo abajo —</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="pilot-name-input" placeholder="Nombre del participante" style="flex:1" onkeydown="if(event.key==='Enter')addPilot()">
+          <input type="text" id="pilot-sail-input" placeholder="Vela N°" style="width:100px">
+          <button class="btn btn-accent" onclick="addPilot()">+ Agregar</button>
+        </div>
       </div>
       <div id="pilots-list"></div>
     </div>
