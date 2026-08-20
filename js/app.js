@@ -2550,10 +2550,40 @@ async function renderAnnualDetailFull(annual) {
         <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
       * No participó — penalidad: ${absentPenalty} (total inscriptos únicos del anual)
     </div>
-    <div style="margin-top:2rem">
+        <div style="margin-top:2rem">
       <h3 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--navy);margin-bottom:.75rem">Campeonatos de este anual</h3>
-      <div class="champ-grid">${renderChampCardsHTML(allChamps)}</div>
+      <div class="champ-grid">${renderAnnualChampCardsHTML(allChamps, champStandings)}</div>
     </div>`;
+}
+
+function renderAnnualChampCardsHTML(champs, champStandings) {
+  if (!champs || !champs.length) return '<div class="empty-state" style="padding:1.5rem 0"><p>No hay campeonatos.</p></div>';
+  const medals = ['🥇','🥈','🥉'];
+  return champs.map(c => {
+    const cs = champStandings.find(s => s.champ.id === c.id);
+    const top3 = cs && cs.ranked ? cs.ranked.slice(0,3) : [];
+    const top3HTML = top3.length ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+      ${top3.map((p,i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px">
+        <span>${medals[i]}</span>
+        ${avatarHTML(p.name)}
+        <span style="font-weight:500;color:#1A2B3C">${esc(p.name)}</span>
+      </div>`).join('')}
+    </div>` : '';
+
+    return `<div class="champ-card" onclick="openChampionship('${c.id}')">
+      <div class="champ-card-name">${esc(c.name)}</div>
+      ${c.event_date ? `<div style="font-size:12px;color:var(--accent-dark);font-weight:500;margin-bottom:2px">${new Date(c.event_date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</div>` : ''}
+      ${c.description ? `<div class="champ-card-desc">${esc(c.description)}</div>` : ''}
+      <div class="champ-card-meta">
+        <span class="meta-chip">${c.total_races} regatas</span>
+        ${c.total_discards > 0 ? `<span class="meta-chip">${c.total_discards} descarte(s)</span>` : ''}
+      </div>
+      ${top3HTML}
+      ${currentUser ? `<div style="margin-top:10px;display:flex;justify-content:flex-end" onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-danger" onclick="deleteChampionship('${c.id}','${esc(c.name).replace(/'/g,"\\'")}')">Eliminar campeonato</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function renderChampCardsHTML(champs) {
