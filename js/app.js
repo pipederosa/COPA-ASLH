@@ -210,7 +210,6 @@ async function loadChampData() {
   activeMedalSeries = msRes.data || null;
   await loadPeoplePhotoMap();
 }
-}
 
 // ===== CHAMPIONSHIP FORM =====
 function updateChampDiscardUI() {
