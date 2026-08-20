@@ -3041,3 +3041,172 @@ async function computePersonStats(person) {
     presentismByAnnual
   };
 }
+
+// ===== SECCIÓN DE ESTADÍSTICAS: tabla y detalle =====
+
+let allPersonStats = [];
+
+function switchPeopleTab(tab, btn) {
+  document.querySelectorAll('#view-people .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('people-tab-fichas').style.display = tab === 'fichas' ? '' : 'none';
+  document.getElementById('people-tab-stats').style.display = tab === 'stats' ? '' : 'none';
+  if (tab === 'stats') loadStatsTable();
+}
+
+async function loadStatsTable() {
+  const container = document.getElementById('stats-container');
+  container.innerHTML = '<div class="loading-state">Calculando estadísticas...</div>';
+  await loadPeoplePhotoMap();
+
+  const { data: people } = await db.from('people').select('*').order('name');
+  if (!people || !people.length) {
+    container.innerHTML = '<div class="empty-state"><p>No hay participantes.</p></div>';
+    return;
+  }
+
+  // Calcular stats de todos (puede tardar unos segundos si hay muchos campeonatos)
+  allPersonStats = [];
+  for (const person of people) {
+    const stats = await computePersonStats(person);
+    if (stats) allPersonStats.push(stats);
+  }
+
+  renderStatsTable();
+}
+
+function renderStatsTable() {
+  const container = document.getElementById('stats-container');
+  const sortBy = document.getElementById('stats-sort').value;
+
+  if (!allPersonStats.length) {
+    container.innerHTML = '<div class="empty-state"><p>No hay estadísticas.</p></div>';
+    return;
+  }
+
+  // Ordenar según criterio. Para posiciones, menor es mejor.
+  const sorted = [...allPersonStats].sort((a, b) => {
+    switch (sortBy) {
+      case 'bestPos': return (a.bestPos ?? 9999) - (b.bestPos ?? 9999);
+      case 'worstPos': return (a.worstPos ?? 9999) - (b.worstPos ?? 9999);
+      case 'avgPos': return (a.avgPos ?? 9999) - (b.avgPos ?? 9999);
+      case 'presentism': {
+        const pa = a.presentismGlobal.total ? a.presentismGlobal.participated/a.presentismGlobal.total : 0;
+        const pb = b.presentismGlobal.total ? b.presentismGlobal.participated/b.presentismGlobal.total : 0;
+        return pb - pa;
+      }
+      default: return (b[sortBy] ?? 0) - (a[sortBy] ?? 0); // más es mejor
+    }
+  });
+
+  const rows = sorted.map((s, i) => {
+    const pres = s.presentismGlobal.total ? Math.round(s.presentismGlobal.participated/s.presentismGlobal.total*100) : 0;
+    return `<tr onclick="showPersonStatsDetail('${s.person.id}')" style="cursor:pointer">
+      <td>${i+1}</td>
+      <td style="white-space:nowrap">${avatarHTML(s.person.name)}${esc(s.person.name)}</td>
+      <td>${s.champsPlayed}</td>
+      <td>${s.wins}</td>
+      <td>${s.podiums}</td>
+      <td>${s.bestPos ?? '—'}</td>
+      <td>${s.worstPos ?? '—'}</td>
+      <td>${s.avgPos != null ? s.avgPos.toFixed(1) : '—'}</td>
+      <td>${s.racesWon}</td>
+      <td>${s.presentismGlobal.participated}/${s.presentismGlobal.total} (${pres}%)</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="results-wrap">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Participante</th>
+            <th>Camp.</th><th>🥇</th><th>Podios</th>
+            <th>Mejor</th><th>Peor</th><th>Prom.</th>
+            <th>Reg. gan.</th><th>Presentismo</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="table-legend">Tocá una fila para ver el detalle completo del participante.</div>`;
+}
+
+async function showPersonStatsDetail(personId) {
+  const s = allPersonStats.find(x => x.person.id === personId);
+  if (!s) return;
+
+  document.getElementById('ps-title').textContent = s.person.name;
+  const body = document.getElementById('ps-body');
+
+  const url = peoplePhotoMap[s.person.name];
+  const avatar = url
+    ? `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`
+    : `<div style="width:72px;height:72px;border-radius:50%;background:var(--foam);color:var(--sea);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600">${initials(s.person.name)}</div>`;
+
+  const medals = ['🥇','🥈','🥉'];
+  const champRows = s.champResults.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span>${r.position<=3?medals[r.position-1]:r.position+'°'}</span>
+      <span style="flex:1">${esc(r.champ.name)}</span>
+      <span style="color:var(--text-light);font-size:12px">${r.position}° de ${r.total}</span>
+    </div>`).join('');
+
+  const annualPres = s.presentismByAnnual.map(a => {
+    const pct = a.total ? Math.round(a.participated/a.total*100) : 0;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px">
+      <span style="flex:1">${esc(a.annualTitle)}</span>
+      <span style="color:var(--sea);font-weight:500">${a.participated}/${a.total} (${pct}%)</span>
+    </div>`;
+  }).join('');
+
+  const statBox = (label, value) => `
+    <div style="background:var(--off-white);border-radius:var(--radius);padding:.6rem .8rem;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:var(--navy);font-family:var(--font-head)">${value}</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-light)">${label}</div>
+    </div>`;
+
+  const presGlobalPct = s.presentismGlobal.total ? Math.round(s.presentismGlobal.participated/s.presentismGlobal.total*100) : 0;
+
+  body.innerHTML = `
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:1rem">
+      ${avatar}
+      <div>
+        <div style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--navy)">${esc(s.person.name)}</div>
+        ${s.person.full_name ? `<div style="font-size:13px;color:var(--text-mid)">${esc(s.person.full_name)}</div>` : ''}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:1rem">
+      ${statBox('Campeonatos', s.champsPlayed)}
+      ${statBox('Victorias', s.wins)}
+      ${statBox('Podios', s.podiums)}
+      ${statBox('Reg. ganadas', s.racesWon)}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:1rem">
+      ${statBox('Mejor pos.', s.bestPos ?? '—')}
+      ${statBox('Peor pos.', s.worstPos ?? '—')}
+      ${statBox('Promedio', s.avgPos != null ? s.avgPos.toFixed(1) : '—')}
+      ${statBox('Presentismo', presGlobalPct + '%')}
+    </div>
+
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">Medallero</div>
+      <div style="display:flex;gap:16px;font-size:15px">
+        <span>🥇 ${s.gold}</span><span>🥈 ${s.silver}</span><span>🥉 ${s.bronze}</span>
+      </div>
+    </div>
+
+    ${annualPres ? `<div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">Presentismo por anual</div>
+      ${annualPres}
+    </div>` : ''}
+
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">Resultado por campeonato</div>
+      ${champRows || '<div style="font-size:13px;color:var(--text-light)">Sin campeonatos</div>'}
+    </div>`;
+
+  showModal('modal-person-stats');
+}
