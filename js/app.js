@@ -2814,6 +2814,9 @@ function renderPersonCard(person, history) {
       </div>
       ${currentUser ? `<button class="btn btn-sm" onclick="showPersonModal('${person.id}')" style="font-size:11px">Editar</button>` : ''}
     </div>
+    <div style="margin-bottom:.5rem">
+      <button class="btn btn-sm" onclick="goToPersonStats('${person.id}')" style="width:100%;font-size:12px;color:var(--sea)">Ver estadísticas</button>
+    </div>
     <div style="border-top:1px solid var(--border);padding-top:.5rem">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin-bottom:4px">Historial</div>
       ${historyHTML}
@@ -3209,4 +3212,17 @@ async function showPersonStatsDetail(personId) {
     </div>`;
 
   showModal('modal-person-stats');
+}
+
+async function goToPersonStats(personId) {
+  // Cambiar al tab de estadísticas
+  document.querySelectorAll('#view-people .tab').forEach((t,i) => t.classList.toggle('active', i===1));
+  document.getElementById('people-tab-fichas').style.display = 'none';
+  document.getElementById('people-tab-stats').style.display = '';
+
+  // Cargar la tabla si no está cargada, y abrir el detalle
+  if (!allPersonStats.length) {
+    await loadStatsTable();
+  }
+  showPersonStatsDetail(personId);
 }
