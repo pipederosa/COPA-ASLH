@@ -273,8 +273,30 @@ function clearChampForm() {
 // ===== PILOTS =====
 async function showPilotsModal() {
   await loadChampData();
+  await populatePersonSelect();
   renderPilotsList();
   showModal('modal-pilots');
+}
+
+async function populatePersonSelect() {
+  const sel = document.getElementById('pilot-person-select');
+  const { data: people } = await db.from('people').select('id, name').order('name', { ascending: true });
+  // Excluir los que ya están en este campeonato (por person_id o nombre)
+  const usedNames = new Set(allPilots.map(p => p.name));
+  const usedPersonIds = new Set(allPilots.map(p => p.person_id).filter(Boolean));
+  sel.innerHTML = '<option value="">— Elegir participante global o escribir nuevo abajo —</option>' +
+    (people || [])
+      .filter(p => !usedPersonIds.has(p.id) && !usedNames.has(p.name))
+      .map(p => `<option value="${p.id}" data-name="${esc(p.name)}">${esc(p.name)}</option>`)
+      .join('');
+}
+
+function onPilotPersonSelect() {
+  const sel = document.getElementById('pilot-person-select');
+  const opt = sel.options[sel.selectedIndex];
+  if (sel.value) {
+    document.getElementById('pilot-name-input').value = opt.getAttribute('data-name') || '';
+  }
 }
 
 function renderPilotsList() {
@@ -293,15 +315,18 @@ function renderPilotsList() {
 async function addPilot() {
   const name = document.getElementById('pilot-name-input').value.trim();
   const sail = document.getElementById('pilot-sail-input').value.trim();
+  const personId = document.getElementById('pilot-person-select').value || null;
   if (!name) return;
   const sort = allPilots.length;
   const { error } = await db.from('pilots').insert({
-    championship_id: currentChampId, name, sail_number: sail || null, sort_order: sort
+    championship_id: currentChampId, name, sail_number: sail || null, sort_order: sort, person_id: personId
   });
   if (error) { showToast('Error al agregar piloto', 'error'); return; }
   document.getElementById('pilot-name-input').value = '';
   document.getElementById('pilot-sail-input').value = '';
+  document.getElementById('pilot-person-select').value = '';
   await loadChampData();
+  await populatePersonSelect();
   renderPilotsList();
   showToast(`${name} agregado`, 'success');
 }
