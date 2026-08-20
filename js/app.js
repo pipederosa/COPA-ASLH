@@ -1839,13 +1839,32 @@ async function renderAnnualCards(annuals) {
 
   const cardsHTML = cards.map(({ annual, summary }) => {
     const isSelected = selectedAnnualId === annual.id;
-    const top3HTML = summary.top3.length ? summary.top3.map((p,i) =>
-      `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px">
-        <span>${medals[i]}</span>
-        ${avatarHTML(p.name)}
-        <span style="font-weight:500">${esc(p.name)}</span>
-        <span style="color:var(--text-light);margin-left:auto">${p.total}pts</span>
-      </div>`).join('') : '<div style="font-size:12px;color:var(--text-light)">Sin datos aún</div>';
+        // Podio ordenado lateralmente: 2° - 1° - 3°
+    const podium = summary.top3;
+    const podiumSpot = (p, place) => {
+      if (!p) return `<div style="flex:1"></div>`;
+      const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
+      const marginTop = place === 1 ? '0' : '24px';
+      const photoSize = place === 1 ? '68px' : '54px';
+      const url = peoplePhotoMap[p.name];
+      const photo = url
+        ? `<img src="${url}" style="width:${photoSize};height:${photoSize};border-radius:50%;object-fit:cover;border:3px solid ${place===1?'#E8A020':'var(--border-mid)'}">`
+        : `<div style="width:${photoSize};height:${photoSize};border-radius:50%;background:var(--foam);color:var(--sea);display:flex;align-items:center;justify-content:center;font-size:${place===1?'20px':'16px'};font-weight:600;border:3px solid ${place===1?'#E8A020':'var(--border-mid)'}">${initials(p.name)}</div>`;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:${marginTop}">
+        <div style="font-size:${place===1?'22px':'18px'}">${medal}</div>
+        ${photo}
+        <div style="font-size:${place===1?'13px':'12px'};font-weight:${place===1?'600':'500'};color:var(--navy);text-align:center;line-height:1.2;max-width:90px">${esc(p.name)}</div>
+        <div style="font-size:11px;color:var(--text-light)">${p.total}pts</div>
+      </div>`;
+    };
+
+    const podiumHTML = podium.length
+      ? `<div style="display:flex;align-items:flex-start;justify-content:center;gap:8px;margin:.75rem 0">
+          ${podiumSpot(podium[1], 2)}
+          ${podiumSpot(podium[0], 1)}
+          ${podiumSpot(podium[2], 3)}
+        </div>`
+      : '<div style="font-size:12px;color:var(--text-light);text-align:center;padding:1rem 0">Sin datos aún</div>';
 
     const winnersHTML = summary.winners.length ? summary.winners.map(w =>
       `<div style="display:flex;align-items:center;gap:6px;padding:1px 0;font-size:11px;color:var(--text-mid)">
@@ -1854,13 +1873,13 @@ async function renderAnnualCards(annuals) {
         <span style="font-weight:500;color:var(--text)">${esc(w.winnerName)}</span>
       </div>`).join('') : '';
 
-    return `<div onclick="selectAnnual('${annual.id}')" style="cursor:pointer;background:var(--white);border:1px solid ${isSelected?'var(--accent)':'var(--border)'};border-left:4px solid ${isSelected?'var(--accent)':'var(--sea)'};border-radius:var(--radius-lg);padding:1rem 1.25rem;transition:all .15s;min-width:260px;flex:1">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-        <span style="font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--navy)">${esc(annual.title)}</span>
+    return `<div onclick="selectAnnual('${annual.id}')" style="cursor:pointer;background:var(--white);border:1px solid ${isSelected?'var(--accent)':'var(--border)'};border-left:4px solid ${isSelected?'var(--accent)':'var(--sea)'};border-radius:var(--radius-lg);padding:1.25rem 1.25rem;transition:all .15s;min-width:300px;flex:1">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
+        <span style="font-family:var(--font-head);font-size:24px;font-weight:700;color:var(--navy);letter-spacing:.5px">${esc(annual.title)}</span>
         ${currentUser ? `<button onclick="event.stopPropagation();showAnnualAdminModal('${annual.id}')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border-mid);border-radius:4px;background:var(--white);cursor:pointer;color:var(--text-mid)">Editar</button>` : ''}
       </div>
-      <div style="margin-bottom:.5rem">${top3HTML}</div>
-      ${winnersHTML ? `<div style="border-top:1px solid var(--border);padding-top:.5rem">
+      ${podiumHTML}
+      ${winnersHTML ? `<div style="border-top:1px solid var(--border);padding-top:.5rem;margin-top:.5rem">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin-bottom:2px">Ganadores por edición</div>
         ${winnersHTML}
       </div>` : ''}
