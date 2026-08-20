@@ -32,7 +32,6 @@ function handleSession(session) {
   document.getElementById('btn-logout').style.display = '';
   document.getElementById('btn-new-champ').style.display = '';
   document.getElementById('champ-admin-btns').style.display = 'flex';
-  document.getElementById('btn-annual-admin').style.display = '';
   document.getElementById('btn-manage-dates').style.display = '';
 }
 
@@ -42,7 +41,6 @@ function handleLogout() {
   document.getElementById('btn-logout').style.display = 'none';
   document.getElementById('btn-new-champ').style.display = 'none';
   document.getElementById('champ-admin-btns').style.display = 'none';
-  document.getElementById('btn-annual-admin').style.display = 'none';
   document.getElementById('btn-manage-dates').style.display = 'none';
 }
 
