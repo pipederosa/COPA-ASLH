@@ -3096,6 +3096,7 @@ function switchPeopleTab(tab, btn) {
   document.getElementById('people-tab-fichas').style.display = tab === 'fichas' ? '' : 'none';
   document.getElementById('people-tab-stats').style.display = tab === 'stats' ? '' : 'none';
   if (tab === 'stats') loadStatsTable();
+  updateHash();
 }
 
 async function loadStatsTable() {
@@ -3320,7 +3321,10 @@ function updateHash() {
   if (!active) return;
   let hash = '';
   if (active.id === 'view-home') hash = '';
-  else if (active.id === 'view-people') hash = '#people';
+  else if (active.id === 'view-people') {
+    const statsVisible = document.getElementById('people-tab-stats').style.display !== 'none';
+    hash = statsVisible ? '#people/stats' : '#people';
+  }
   else if (active.id === 'view-champ' && currentChampId) hash = '#champ/' + currentChampId + (resultsViewMode ? '/' + resultsViewMode : '');
   else if (active.id === 'view-annual' && selectedAnnualId) hash = '#annual/' + selectedAnnualId;
   // Reemplazar sin agregar entrada al historial
@@ -3334,8 +3338,13 @@ async function restoreFromHash() {
   const parts = hash.replace(/^#/, '').split('/');
   const type = parts[0];
 
-  if (type === 'people') {
+    if (type === 'people') {
     showView('people');
+    if (parts[1] === 'stats') {
+      // Activar el tab de estadísticas
+      const statsTab = document.querySelectorAll('#view-people .tab')[1];
+      if (statsTab) switchPeopleTab('stats', statsTab);
+    }
   } else if (type === 'champ' && parts[1]) {
     await openChampionship(parts[1]);
     // Restaurar sub-vista (clasificación/medal) si venía
