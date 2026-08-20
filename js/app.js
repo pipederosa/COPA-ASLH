@@ -1912,9 +1912,11 @@ async function renderAnnualCards(annuals) {
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem">${cardsHTML}</div>
     ${newBtn}`;
 }
+
 async function selectAnnual(id) {
   const { data: annual } = await db.from('annual_config').select('*').eq('id', id).maybeSingle();
   if (!annual) return;
+  selectedAnnualId = id;
   document.getElementById('annual-view-title').textContent = annual.title;
   document.getElementById('annual-view-subtitle').textContent = 'Clasificación acumulada';
   showView('annual');
