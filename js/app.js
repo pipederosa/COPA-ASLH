@@ -1773,147 +1773,80 @@ async function deleteChampDate(id) {
 
 // ===== ANNUAL CHAMPIONSHIP =====
 
+let selectedAnnualId = null;
+
 async function loadAnnualStandings() {
   const section = document.getElementById('annual-section');
-  // Get active annual config
-  const { data: configs } = await db.from('annual_config').select('*').eq('active', true).limit(1);
-  if (!configs || !configs.length) { section.style.display = 'none'; return; }
 
-  const annual = configs[0];
-  document.getElementById('annual-title').textContent = annual.title;
+  // Traer todos los anuales
+  const { data: annuals } = await db.from('annual_config').select('*').order('sort_order', { ascending: true });
+  if (!annuals || !annuals.length) { section.style.display = 'none'; return; }
 
-  // Get championships in this annual
-  const { data: annualChamps } = await db.from('annual_championships')
-    .select('championship_id').eq('annual_id', annual.id);
-  if (!annualChamps || !annualChamps.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
 
-  const champIds = annualChamps.map(a => a.championship_id);
+  // Renderizar tarjetas de anuales
+  await renderAnnualCards(annuals);
+}
 
-  // Fetch all data for included championships
-  const { data: allChamps } = await db.from('championships').select('*').in('id', champIds);
-  if (!allChamps || !allChamps.length) { section.style.display = 'none'; return; }
+async function renderAnnualCards(annuals) {
+  const container = document.getElementById('annual-standings');
 
-  // Compute standings for each championship
-  const champStandings = await Promise.all(allChamps.map(async c => {
-    const [pilotsRes, racesRes, resultsRes, adjRes] = await Promise.all([
-      db.from('pilots').select('id,name').eq('championship_id', c.id),
-      db.from('races').select('*').eq('championship_id', c.id),
-      db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', c.id),
-      db.from('point_adjustments').select('*').eq('championship_id', c.id)
-    ]);
-    const pilots = pilotsRes.data || [];
-    const races = racesRes.data || [];
-    const results = resultsRes.data || [];
-    const adjs = adjRes.data || [];
-    if (!pilots.length || !races.length) return { champ: c, pilots, ranked: [] };
-
-    const maxRace = Math.max(...races.map(r => r.race_number));
-    const activeD = c.total_discards >= 2 && maxRace >= c.discard2_from ? 2
-      : c.total_discards >= 1 && maxRace >= c.discard1_from ? 1 : 0;
-
-    const medalRace = races.find(r => r.is_medal_race);
-    const scores = pilots.map(pilot => {
-      const pts = races.map(race => {
-        const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
-        return res ? { race, pts: res.points } : null;
-      }).filter(Boolean);
-      const gross = pts.reduce((a,p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
-      const discardable = pts.filter(p => !p.race.no_discard);
-      let discarded = [];
-      if (activeD > 0 && discardable.length) {
-        [...discardable].sort((a,b)=>(b.race.is_double?b.pts*2:b.pts)-(a.race.is_double?a.pts*2:a.pts))
-          .slice(0, activeD).forEach(p => discarded.push(p.race.id));
-      }
-      const raceNet = pts.filter(p=>!discarded.includes(p.race.id))
-        .reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
-      const adjTotal = adjs.filter(a=>a.pilot_id===pilot.id).reduce((a,adj)=>a+adj.points,0);
-      // Posición en Medal Race para desempate
-      let medalPos = 9999;
-      if (medalRace) {
-        const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
-        if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
-      }
-      return { name: pilot.name, net: raceNet + adjTotal, gross, medalPos };
-    }).sort((a,b)=>a.net-b.net || a.medalPos-b.medalPos || a.gross-b.gross);
-
-    // Assign finish positions (1-based)
-    const ranked = scores.map((s, i) => ({ ...s, position: i + 1 }));
-    return { champ: c, pilots, ranked };
+  // Para cada anual, calcular top3 y ganadores de cada edición
+  const cards = await Promise.all(annuals.map(async annual => {
+    const summary = await getAnnualSummary(annual);
+    return { annual, summary };
   }));
 
-  // Collect all unique pilot names across all included championships
-  const allPilotNames = new Set();
-  champStandings.forEach(cs => cs.pilots.forEach(p => allPilotNames.add(p.name)));
-  const totalUniquePilots = allPilotNames.size;
-
-  // Penalty for not participating = totalUniquePilots
-  const absentPenalty = totalUniquePilots;
-
-  // Build annual scores per pilot name
-  const annualScores = {};
-  allPilotNames.forEach(name => {
-    annualScores[name] = { name, total: 0, perChamp: {} };
-    champStandings.forEach(cs => {
-      const entry = cs.ranked.find(r => r.name === name);
-      if (entry) {
-        annualScores[name].total += entry.position;
-        annualScores[name].perChamp[cs.champ.id] = { pos: entry.position, absent: false };
-      } else if (cs.ranked.length > 0) {
-        // Only penalize if that champ has results
-        annualScores[name].total += absentPenalty;
-        annualScores[name].perChamp[cs.champ.id] = { pos: absentPenalty, absent: true };
-      } else {
-        annualScores[name].perChamp[cs.champ.id] = { pos: null, absent: false };
-      }
-    });
-  });
-
-  const annualRanked = Object.values(annualScores)
-    .filter(p => champStandings.some(cs => cs.ranked.find(r => r.name === p.name)))
-    .sort((a,b) => a.total - b.total);
-
-  if (!annualRanked.length) { section.style.display = 'none'; return; }
-
   const medals = ['🥇','🥈','🥉'];
-  const champHeaders = allChamps.map(c =>
-    `<th title="${esc(c.name)}">${esc(c.name.length > 12 ? c.name.slice(0,12)+'…' : c.name)}</th>`
-  ).join('');
 
-  const rows = annualRanked.map((p, i) => {
-    const pos = i+1;
-    const posLabel = medals[i] || `${pos}°`;
-    const posClass = pos===1?'pos-1':pos===2?'pos-2':pos===3?'pos-3':'';
-    const champCells = allChamps.map(c => {
-      const entry = p.perChamp[c.id];
-      if (!entry || entry.pos === null) return `<td style="color:var(--text-light)">—</td>`;
-      if (entry.absent) return `<td class="annual-pts-absent" title="No participó — penalidad ${absentPenalty}">${absentPenalty}*</td>`;
-      return `<td>${entry.pos}°</td>`;
-    }).join('');
-    return `<tr>
-      <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
-      <td>${esc(p.name)}</td>
-      ${champCells}
-      <td style="font-weight:600;color:var(--sea)">${p.total}</td>
-    </tr>`;
+  const cardsHTML = cards.map(({ annual, summary }) => {
+    const isSelected = selectedAnnualId === annual.id;
+    const top3HTML = summary.top3.length ? summary.top3.map((p,i) =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px">
+        <span>${medals[i]}</span>
+        <span style="font-weight:500">${esc(p.name)}</span>
+        <span style="color:var(--text-light);margin-left:auto">${p.total}pts</span>
+      </div>`).join('') : '<div style="font-size:12px;color:var(--text-light)">Sin datos aún</div>';
+
+    const winnersHTML = summary.winners.length ? summary.winners.map(w =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:1px 0;font-size:11px;color:var(--text-mid)">
+        <span style="color:var(--accent-dark)">🏆</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.champName)}</span>
+        <span style="font-weight:500;color:var(--text)">${esc(w.winnerName)}</span>
+      </div>`).join('') : '';
+
+    return `<div onclick="selectAnnual('${annual.id}')" style="cursor:pointer;background:var(--white);border:1px solid ${isSelected?'var(--accent)':'var(--border)'};border-left:4px solid ${isSelected?'var(--accent)':'var(--sea)'};border-radius:var(--radius-lg);padding:1rem 1.25rem;transition:all .15s;min-width:260px;flex:1">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <span style="font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--navy)">${esc(annual.title)}</span>
+        ${currentUser ? `<button onclick="event.stopPropagation();showAnnualAdminModal('${annual.id}')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border-mid);border-radius:4px;background:var(--white);cursor:pointer;color:var(--text-mid)">Editar</button>` : ''}
+      </div>
+      <div style="margin-bottom:.5rem">${top3HTML}</div>
+      ${winnersHTML ? `<div style="border-top:1px solid var(--border);padding-top:.5rem">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin-bottom:2px">Ganadores por edición</div>
+        ${winnersHTML}
+      </div>` : ''}
+    </div>`;
   }).join('');
 
-  const table = `
-    <div style="overflow-x:auto">
-      <table class="annual-table">
-        <thead><tr>
-          <th>Pos</th><th>Participante</th>
-          ${champHeaders}
-          <th>Total</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
-      * No participó — penalidad: ${absentPenalty} (total inscriptos únicos)
-    </div>`;
+  const newBtn = currentUser
+    ? `<button class="btn btn-sm" onclick="showAnnualAdminModal()" style="align-self:flex-start">+ Nuevo anual</button>`
+    : '';
 
-  document.getElementById('annual-standings').innerHTML = table;
-  section.style.display = '';
+  container.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem">${cardsHTML}</div>
+    ${newBtn}
+    <div id="annual-detail" style="margin-top:1.5rem"></div>`;
+
+  // Si hay uno seleccionado, mostrar su detalle
+  if (selectedAnnualId) {
+    const found = annuals.find(a => a.id === selectedAnnualId);
+    if (found) renderAnnualDetail(found);
+  }
+}
+
+function selectAnnual(id) {
+  selectedAnnualId = selectedAnnualId === id ? null : id;
+  loadAnnualStandings();
 }
 
 // ===== ANNUAL ADMIN MODAL =====
