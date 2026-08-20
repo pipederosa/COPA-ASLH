@@ -89,6 +89,7 @@ function switchTab(tab) {
 async function loadChampionships() {
   const grid = document.getElementById('champ-grid');
   grid.innerHTML = '<div class="loading-state">Cargando campeonatos...</div>';
+  await loadPeoplePhotoMap();
   const { data, error } = await db
     .from('championships')
     .select('*')
@@ -124,6 +125,7 @@ async function loadChampionships() {
       ${top3.length ? `<div style="margin-top:10px;border-top:1px solid rgba(26,107,138,0.12);padding-top:8px">
         ${top3.map((p,i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px">
           <span>${medals[i]}</span>
+          ${avatarHTML(p.name)}
           <span style="font-weight:500;color:#1A2B3C">${esc(p.name)}</span>
           <span style="color:#7A9AB8;margin-left:auto">${p.net}pts</span>
         </div>`).join('')}
@@ -1812,6 +1814,7 @@ let selectedAnnualId = null;
 
 async function loadAnnualStandings() {
   const section = document.getElementById('annual-section');
+  await loadPeoplePhotoMap();
 
   // Traer todos los anuales
   const { data: annuals } = await db.from('annual_config').select('*').order('sort_order', { ascending: true });
@@ -1839,6 +1842,7 @@ async function renderAnnualCards(annuals) {
     const top3HTML = summary.top3.length ? summary.top3.map((p,i) =>
       `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px">
         <span>${medals[i]}</span>
+        ${avatarHTML(p.name)}
         <span style="font-weight:500">${esc(p.name)}</span>
         <span style="color:var(--text-light);margin-left:auto">${p.total}pts</span>
       </div>`).join('') : '<div style="font-size:12px;color:var(--text-light)">Sin datos aún</div>';
