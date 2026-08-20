@@ -2316,3 +2316,142 @@ async function deleteMedalAdjustment(id) {
   renderResultsTable();
   showToast('Ajuste eliminado', 'success');
 }
+
+async function getAnnualSummary(annual) {
+  // Campeonatos incluidos
+  const { data: annualChamps } = await db.from('annual_championships')
+    .select('championship_id').eq('annual_id', annual.id);
+  if (!annualChamps || !annualChamps.length) return { top3: [], winners: [], champIds: [] };
+
+  const champIds = annualChamps.map(a => a.championship_id);
+  const { data: allChamps } = await db.from('championships').select('*').in('id', champIds);
+  if (!allChamps || !allChamps.length) return { top3: [], winners: [], champIds };
+
+  // Calcular ranking de cada campeonato
+  const champStandings = await Promise.all(allChamps.map(async c => {
+    const ranked = await getChampFinalRanking(c);
+    return { champ: c, ranked };
+  }));
+
+  // Ganador de cada campeonato (1° puesto)
+  const winners = champStandings
+    .filter(cs => cs.ranked.length > 0)
+    .map(cs => ({ champName: cs.champ.name, winnerName: cs.ranked[0].name }));
+
+  // Total de inscriptos únicos (para penalidad de ausentes)
+  const allPilotNames = new Set();
+  champStandings.forEach(cs => cs.ranked.forEach(r => allPilotNames.add(r.name)));
+  const absentPenalty = allPilotNames.size;
+
+  // Puntaje anual por persona
+  const annualScores = {};
+  allPilotNames.forEach(name => { annualScores[name] = { name, total: 0 }; });
+  champStandings.forEach(cs => {
+    if (!cs.ranked.length) return;
+    allPilotNames.forEach(name => {
+      const entry = cs.ranked.find(r => r.name === name);
+      annualScores[name].total += entry ? entry.position : absentPenalty;
+    });
+  });
+
+  const ranked = Object.values(annualScores)
+    .filter(p => champStandings.some(cs => cs.ranked.find(r => r.name === p.name)))
+    .sort((a,b) => a.total - b.total);
+
+  return { top3: ranked.slice(0,3), winners, champIds, absentPenalty, allChamps, champStandings, ranked };
+}
+
+// Ranking final de un campeonato — usa Medal Series si existe, si no la clasificación normal
+async function getChampFinalRanking(champ) {
+  const [pilotsRes, racesRes, resultsRes, adjRes, msRes] = await Promise.all([
+    db.from('pilots').select('id,name').eq('championship_id', champ.id),
+    db.from('races').select('*').eq('championship_id', champ.id),
+    db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', champ.id),
+    db.from('point_adjustments').select('*').eq('championship_id', champ.id),
+    db.from('medal_series').select('*').eq('championship_id', champ.id).eq('active', true).maybeSingle()
+  ]);
+  const pilots = pilotsRes.data || [];
+  const races = racesRes.data || [];
+  const results = resultsRes.data || [];
+  const adjs = adjRes.data || [];
+  const ms = msRes.data || null;
+  if (!pilots.length || !races.length) return [];
+
+  const n = pilots.length;
+
+  // Función auxiliar: ranking normal hasta cierta regata
+  const rankUntil = (maxNum) => {
+    const racesUpTo = races.filter(r => r.race_number <= maxNum && !r.is_medal_series);
+    const maxRace = racesUpTo.length ? Math.max(...racesUpTo.map(r => r.race_number)) : 0;
+    const activeD = champ.total_discards >= 2 && maxRace >= champ.discard2_from ? 2
+      : champ.total_discards >= 1 && maxRace >= champ.discard1_from ? 1 : 0;
+    const medalRace = racesUpTo.find(r => r.is_medal_race);
+    return pilots.map(pilot => {
+      const pts = racesUpTo.map(race => {
+        const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+        return res ? { race, pts: res.points } : null;
+      }).filter(Boolean);
+      const gross = pts.reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+      const discardable = pts.filter(p => !p.race.no_discard);
+      let discarded = [];
+      if (activeD > 0 && discardable.length) {
+        [...discardable].sort((a,b)=>(b.race.is_double?b.pts*2:b.pts)-(a.race.is_double?a.pts*2:a.pts))
+          .slice(0, activeD).forEach(p => discarded.push(p.race.id));
+      }
+      const raceNet = pts.filter(p=>!discarded.includes(p.race.id)).reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+      const adjTotal = adjs.filter(a=>a.pilot_id===pilot.id && !a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+      let medalPos = 9999;
+      if (medalRace) {
+        const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
+        if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
+      }
+      return { pilot, net: raceNet + adjTotal, gross, medalPos };
+    }).sort((a,b)=>a.net-b.net || a.medalPos-b.medalPos || a.gross-b.gross);
+  };
+
+  if (!ms) {
+    // Sin medal series: ranking normal completo
+    const maxNum = Math.max(...races.filter(r=>!r.is_medal_series).map(r=>r.race_number), 0);
+    return rankUntil(maxNum).map((e,i) => ({ name: e.pilot.name, position: i+1 }));
+  }
+
+  // Con medal series: aplicar carry-over + regatas medal
+  const k = ms.num_medal_races;
+  const qualifierRanking = rankUntil(ms.qualifier_until).map(e => ({ pilot: e.pilot, net: e.net }));
+
+  // Carry-over en cascada
+  const withStart = [];
+  for (let i = 0; i < qualifierRanking.length; i++) {
+    const orig = qualifierRanking[i].net;
+    if (i === 0) withStart.push({ ...qualifierRanking[i], startNet: orig });
+    else if (i <= 2) {
+      const cap = withStart[i-1].startNet + (n-1);
+      withStart.push({ ...qualifierRanking[i], startNet: Math.min(orig, cap) });
+    } else {
+      const cap = withStart[i-1].startNet + (n-1);
+      const globalCap = withStart[2].startNet + (n-1)*k;
+      withStart.push({ ...qualifierRanking[i], startNet: Math.min(orig, cap, globalCap) });
+    }
+  }
+
+  const medalRaces = races.filter(r => r.is_medal_series).sort((a,b)=>a.race_number-b.race_number);
+  const lastMedal = medalRaces.length ? medalRaces[medalRaces.length-1] : null;
+
+  const table = withStart.map(entry => {
+    const pilot = entry.pilot;
+    const medalSum = medalRaces.reduce((a,race) => {
+      const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+      return a + (res ? res.points : 0);
+    }, 0);
+    const adjMedal = adjs.filter(a => a.pilot_id === pilot.id && a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+    let lastPos = 9999;
+    if (lastMedal) {
+      const lr = results.find(r => r.race_id === lastMedal.id && r.pilot_id === pilot.id);
+      if (lr && !PENALTIES.includes(lr.status)) lastPos = lr.position;
+    }
+    return { name: pilot.name, total: entry.startNet + medalSum + adjMedal, lastPos };
+  });
+
+  table.sort((a,b) => a.total - b.total || a.lastPos - b.lastPos);
+  return table.map((e,i) => ({ name: e.name, position: i+1 }));
+}
