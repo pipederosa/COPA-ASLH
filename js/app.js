@@ -1850,9 +1850,12 @@ function selectAnnual(id) {
 }
 
 // ===== ANNUAL ADMIN MODAL =====
-async function showAnnualAdminModal() {
-  const { data: configs } = await db.from('annual_config').select('*').eq('active', true).limit(1);
-  const existing = configs && configs.length ? configs[0] : null;
+async function showAnnualAdminModal(annualId) {
+  let existing = null;
+  if (annualId) {
+    const { data } = await db.from('annual_config').select('*').eq('id', annualId).maybeSingle();
+    existing = data;
+  }
 
   document.getElementById('annual-title-input').value = existing ? existing.title : 'Campeonato Anual';
 
@@ -1889,7 +1892,7 @@ async function saveAnnualConfig() {
     await db.from('annual_config').update({ title }).eq('id', annualId);
     await db.from('annual_championships').delete().eq('annual_id', annualId);
   } else {
-    const { data } = await db.from('annual_config').insert({ title, active: true }).select().single();
+        const { data } = await db.from('annual_config').insert({ title, active: true, sort_order: Date.now() }).select().single();
     annualId = data.id;
   }
 
@@ -2454,4 +2457,61 @@ async function getChampFinalRanking(champ) {
 
   table.sort((a,b) => a.total - b.total || a.lastPos - b.lastPos);
   return table.map((e,i) => ({ name: e.name, position: i+1 }));
+}
+
+async function renderAnnualDetail(annual) {
+  const container = document.getElementById('annual-detail');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state">Cargando tabla anual...</div>';
+
+  const summary = await getAnnualSummary(annual);
+  if (!summary.ranked || !summary.ranked.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:1.5rem 0"><p>Este anual aún no tiene resultados.</p></div>';
+    return;
+  }
+
+  const { allChamps, champStandings, ranked, absentPenalty } = summary;
+  const medals = ['🥇','🥈','🥉'];
+
+  const champHeaders = allChamps.map(c =>
+    `<th title="${esc(c.name)}">${esc(c.name.length > 12 ? c.name.slice(0,12)+'…' : c.name)}</th>`
+  ).join('');
+
+  const rows = ranked.map((p, i) => {
+    const pos = i+1;
+    const posLabel = medals[i] || `${pos}°`;
+    const posClass = pos===1?'pos-1':pos===2?'pos-2':pos===3?'pos-3':'';
+    const champCells = allChamps.map(c => {
+      const cs = champStandings.find(s => s.champ.id === c.id);
+      if (!cs || !cs.ranked.length) return `<td style="color:var(--text-light)">—</td>`;
+      const entry = cs.ranked.find(r => r.name === p.name);
+      if (!entry) return `<td class="annual-pts-absent" title="No participó — penalidad ${absentPenalty}">${absentPenalty}*</td>`;
+      return `<td>${entry.position}°</td>`;
+    }).join('');
+    return `<tr>
+      <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
+      <td>${esc(p.name)}</td>
+      ${champCells}
+      <td style="font-weight:600;color:var(--sea)">${p.total}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem">
+      <h3 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--navy)">${esc(annual.title)}</h3>
+      <span class="badge badge-sea">${allChamps.length} campeonato(s)</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="annual-table">
+        <thead><tr>
+          <th>Pos</th><th>Participante</th>
+          ${champHeaders}
+          <th>Total</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
+      * No participó — penalidad: ${absentPenalty} (total inscriptos únicos del anual)
+    </div>`;
 }
