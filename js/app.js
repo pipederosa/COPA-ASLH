@@ -2995,99 +2995,6 @@ function avatarHTML(name) {
   return `<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--foam);color:var(--sea);align-items:center;justify-content:center;font-size:9px;font-weight:600;vertical-align:middle;margin-right:6px">${initials(name)}</span>`;
 }
 
-// ===== ESTADÍSTICAS DE PARTICIPANTES =====
-
-// Calcula todas las estadísticas de una persona
-async function computePersonStats(person) {
-  
-  // 1. Traer todos los campeonatos y anuales
-  const { data: allChampsRaw } = await db.from('championships').select('*');
-  const { data: annuals } = await db.from('annual_config').select('*').order('sort_order');
-  const { data: annualLinks } = await db.from('annual_championships').select('*');
-  const { data: allPilotsData } = await db.from('pilots').select('championship_id, name, person_id');
-
-  if (!allChampsRaw) return null;
-
-  // Filtrar solo campeonatos que ya se corrieron (tienen al menos una regata con resultados)
-  const { data: racesWithResults } = await db.from('races').select('championship_id, id');
-  const { data: anyResults } = await db.from('results').select('race_id');
-  const racesWithResultsSet = new Set((anyResults || []).map(r => r.race_id));
-  const champsRun = new Set();
-  (racesWithResults || []).forEach(race => {
-    if (racesWithResultsSet.has(race.id)) champsRun.add(race.championship_id);
-  });
-  const allChamps = allChampsRaw.filter(c => champsRun.has(c.id));
-
-  // 2. Determinar en qué campeonatos participó esta persona
-  const myChampIds = new Set();
-  (allPilotsData || []).forEach(p => {
-    if (p.person_id === person.id) myChampIds.add(p.championship_id);
-    else if (!p.person_id && p.name === person.name) myChampIds.add(p.championship_id);
-  });
-
-  // 3. Calcular ranking final de cada campeonato donde participó y sacar su posición
-  const champResults = [];
-  for (const champId of myChampIds) {
-    const champ = allChamps.find(c => c.id === champId);
-    if (!champ) continue;
-    const ranking = await getChampFinalRanking(champ);
-    const totalParticipants = ranking.length;
-    const pos = ranking.findIndex(r => r.name === person.name) + 1;
-    if (pos > 0) {
-      champResults.push({ champ, position: pos, total: totalParticipants });
-    }
-  }
-
-  // 4. Estadísticas de posición (final en campeonatos)
-  const positions = champResults.map(r => r.position);
-  const bestPos = positions.length ? Math.min(...positions) : null;
-  const worstPos = positions.length ? Math.max(...positions) : null;
-  const avgPos = positions.length ? (positions.reduce((a,b)=>a+b,0) / positions.length) : null;
-
-  // 5. Medallero (podios en campeonatos)
-  const gold = champResults.filter(r => r.position === 1).length;
-  const silver = champResults.filter(r => r.position === 2).length;
-  const bronze = champResults.filter(r => r.position === 3).length;
-  const podiums = gold + silver + bronze;
-
-  // 6. Regatas ganadas (llegó 1° en una regata individual, no team/medal series)
-  let racesWon = 0;
-  for (const { champ } of champResults) {
-    const { data: races } = await db.from('races').select('*').eq('championship_id', champ.id);
-    const { data: results } = await db.from('results').select('*, races!inner(championship_id)').eq('races.championship_id', champ.id);
-    const { data: pilots } = await db.from('pilots').select('id, name, person_id').eq('championship_id', champ.id);
-    const myPilot = (pilots||[]).find(pl => pl.person_id === person.id || (!pl.person_id && pl.name === person.name));
-    if (!myPilot) continue;
-    (races||[]).filter(r => !r.is_team_race).forEach(race => {
-      const res = (results||[]).find(r => r.race_id === race.id && r.pilot_id === myPilot.id);
-      if (res && res.status === 'normal' && res.position === 1) racesWon++;
-    });
-  }
-
-  // 7. Presentismo global (de todos los campeonatos existentes)
-  const totalChampsAll = allChamps.length;
-  const presentismGlobal = { participated: champResults.length, total: totalChampsAll };
-
-  // 8. Presentismo por anual
-  const presentismByAnnual = (annuals || []).map(annual => {
-    const champIdsInAnnual = (annualLinks || []).filter(l => l.annual_id === annual.id).map(l => l.championship_id);
-    const participatedInAnnual = champIdsInAnnual.filter(cid => myChampIds.has(cid)).length;
-    return { annualTitle: annual.title, participated: participatedInAnnual, total: champIdsInAnnual.length };
-  }).filter(a => a.total > 0);
-
-  return {
-    person,
-    champResults: champResults.sort((a,b) => a.champ.name.localeCompare(b.champ.name)),
-    champsPlayed: champResults.length,
-    bestPos, worstPos, avgPos,
-    gold, silver, bronze, podiums,
-    wins: gold,
-    racesWon,
-    presentismGlobal,
-    presentismByAnnual
-  };
-}
-
 // ===== SECCIÓN DE ESTADÍSTICAS: tabla y detalle =====
 
 let allPersonStats = [];
@@ -3112,13 +3019,43 @@ async function loadStatsTable() {
     return;
   }
 
-  // Calcular stats de todos (puede tardar unos segundos si hay muchos campeonatos)
-  allPersonStats = [];
-  for (const person of people) {
-    const stats = await computePersonStats(person);
-    if (stats) allPersonStats.push(stats);
+  // Cargar TODO de una vez
+  const [champsRes, annualsRes, linksRes, pilotsRes, racesRes, resultsRes, adjRes, msRes] = await Promise.all([
+    db.from('championships').select('*'),
+    db.from('annual_config').select('*').order('sort_order'),
+    db.from('annual_championships').select('*'),
+    db.from('pilots').select('*'),
+    db.from('races').select('*'),
+    db.from('results').select('*'),
+    db.from('point_adjustments').select('*'),
+    db.from('medal_series').select('*').eq('active', true)
+  ]);
+
+  const bundle = {
+    champs: champsRes.data || [],
+    annuals: annualsRes.data || [],
+    links: linksRes.data || [],
+    pilots: pilotsRes.data || [],
+    races: racesRes.data || [],
+    results: resultsRes.data || [],
+    adjs: adjRes.data || [],
+    medalSeries: msRes.data || []
+  };
+
+  // Campeonatos que ya se corrieron (tienen resultados)
+  const raceIdsWithResults = new Set(bundle.results.map(r => r.race_id));
+  const champsRun = new Set();
+  bundle.races.forEach(race => { if (raceIdsWithResults.has(race.id)) champsRun.add(race.championship_id); });
+  bundle.champsRun = champsRun;
+
+  // Pre-calcular el ranking final de cada campeonato corrido (una sola vez)
+  bundle.rankings = {};
+  for (const champ of bundle.champs) {
+    if (!champsRun.has(champ.id)) continue;
+    bundle.rankings[champ.id] = computeChampRankingFromBundle(champ, bundle);
   }
 
+  allPersonStats = people.map(person => computePersonStatsFromBundle(person, bundle)).filter(Boolean);
   renderStatsTable();
 }
 
@@ -3359,4 +3296,144 @@ async function restoreFromHash() {
   } else {
     showView('home');
   }
+}
+
+// Calcula el ranking final de un campeonato usando datos ya cargados (sin consultas)
+function computeChampRankingFromBundle(champ, bundle) {
+  const pilots = bundle.pilots.filter(p => p.championship_id === champ.id);
+  const races = bundle.races.filter(r => r.championship_id === champ.id);
+  const raceIds = new Set(races.map(r => r.id));
+  const results = bundle.results.filter(r => raceIds.has(r.race_id));
+  const adjs = bundle.adjs.filter(a => a.championship_id === champ.id);
+  const ms = bundle.medalSeries.find(m => m.championship_id === champ.id) || null;
+  if (!pilots.length || !races.length) return [];
+
+  const n = pilots.length;
+
+  const rankUntil = (maxNum) => {
+    const racesUpTo = races.filter(r => r.race_number <= maxNum && !r.is_medal_series);
+    const maxRace = racesUpTo.length ? Math.max(...racesUpTo.map(r => r.race_number)) : 0;
+    const activeD = champ.total_discards >= 2 && maxRace >= champ.discard2_from ? 2
+      : champ.total_discards >= 1 && maxRace >= champ.discard1_from ? 1 : 0;
+    const medalRace = racesUpTo.find(r => r.is_medal_race);
+    return pilots.map(pilot => {
+      const pts = racesUpTo.map(race => {
+        const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+        return res ? { race, pts: res.points, result: res } : null;
+      }).filter(Boolean);
+      const gross = pts.reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+      const discardable = pts.filter(p => !p.race.no_discard);
+      let discarded = [];
+      if (activeD > 0 && discardable.length) {
+        [...discardable].sort((a,b)=>(b.race.is_double?b.pts*2:b.pts)-(a.race.is_double?a.pts*2:a.pts))
+          .slice(0, activeD).forEach(p => discarded.push(p.race.id));
+      }
+      const raceNet = pts.filter(p=>!discarded.includes(p.race.id)).reduce((a,p)=>a+(p.race.is_double?p.pts*2:p.pts),0);
+      const adjTotal = adjs.filter(a=>a.pilot_id===pilot.id && !a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+      let medalPos = 9999;
+      if (medalRace) {
+        const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
+        if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
+      }
+      const posCounts = countPositionsForTiebreak(pts, discarded);
+      return { pilot, net: raceNet + adjTotal, gross, medalPos, posCounts };
+    }).sort((a,b) => a.net-b.net || a.medalPos-b.medalPos || compareByPositionCounts(a.posCounts,b.posCounts));
+  };
+
+  if (!ms) {
+    const maxNum = Math.max(...races.filter(r=>!r.is_medal_series).map(r=>r.race_number), 0);
+    return rankUntil(maxNum).map((e,i) => ({ name: e.pilot.name, position: i+1 }));
+  }
+
+  const k = ms.num_medal_races;
+  const qualifierRanking = rankUntil(ms.qualifier_until).map(e => ({ pilot: e.pilot, net: e.net }));
+  const withStart = [];
+  for (let i = 0; i < qualifierRanking.length; i++) {
+    const orig = qualifierRanking[i].net;
+    if (i === 0) withStart.push({ ...qualifierRanking[i], startNet: orig });
+    else if (i <= 2) withStart.push({ ...qualifierRanking[i], startNet: Math.min(orig, withStart[i-1].startNet + (n-1)) });
+    else {
+      const cap = withStart[i-1].startNet + (n-1);
+      const globalCap = withStart[2].startNet + (n-1)*k;
+      withStart.push({ ...qualifierRanking[i], startNet: Math.min(orig, cap, globalCap) });
+    }
+  }
+  const medalRaces = races.filter(r => r.is_medal_series).sort((a,b)=>a.race_number-b.race_number);
+  const lastMedal = medalRaces.length ? medalRaces[medalRaces.length-1] : null;
+  const table = withStart.map(entry => {
+    const pilot = entry.pilot;
+    const medalSum = medalRaces.reduce((a,race) => {
+      const res = results.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
+      return a + (res ? res.points : 0);
+    }, 0);
+    const adjMedal = adjs.filter(a => a.pilot_id === pilot.id && a.is_medal_series).reduce((a,adj)=>a+adj.points,0);
+    let lastPos = 9999;
+    if (lastMedal) {
+      const lr = results.find(r => r.race_id === lastMedal.id && r.pilot_id === pilot.id);
+      if (lr && !PENALTIES.includes(lr.status)) lastPos = lr.position;
+    }
+    return { name: pilot.name, total: entry.startNet + medalSum + adjMedal, lastPos };
+  });
+  table.sort((a,b) => a.total - b.total || a.lastPos - b.lastPos);
+  return table.map((e,i) => ({ name: e.name, position: i+1 }));
+}
+
+// Calcula stats de una persona usando el bundle y los rankings pre-calculados
+function computePersonStatsFromBundle(person, bundle) {
+  const myChampIds = new Set();
+  bundle.pilots.forEach(p => {
+    if (p.person_id === person.id) myChampIds.add(p.championship_id);
+    else if (!p.person_id && p.name === person.name) myChampIds.add(p.championship_id);
+  });
+
+  const champResults = [];
+  for (const champId of myChampIds) {
+    if (!bundle.champsRun.has(champId)) continue;
+    const champ = bundle.champs.find(c => c.id === champId);
+    const ranking = bundle.rankings[champId];
+    if (!champ || !ranking) continue;
+    const pos = ranking.findIndex(r => r.name === person.name) + 1;
+    if (pos > 0) champResults.push({ champ, position: pos, total: ranking.length });
+  }
+
+  const positions = champResults.map(r => r.position);
+  const bestPos = positions.length ? Math.min(...positions) : null;
+  const worstPos = positions.length ? Math.max(...positions) : null;
+  const avgPos = positions.length ? (positions.reduce((a,b)=>a+b,0)/positions.length) : null;
+  const gold = champResults.filter(r => r.position === 1).length;
+  const silver = champResults.filter(r => r.position === 2).length;
+  const bronze = champResults.filter(r => r.position === 3).length;
+  const podiums = gold + silver + bronze;
+
+  // Regatas ganadas
+  let racesWon = 0;
+  champResults.forEach(({ champ }) => {
+    const myPilot = bundle.pilots.find(pl => pl.championship_id === champ.id &&
+      (pl.person_id === person.id || (!pl.person_id && pl.name === person.name)));
+    if (!myPilot) return;
+    bundle.races.filter(r => r.championship_id === champ.id && !r.is_team_race).forEach(race => {
+      const res = bundle.results.find(r => r.race_id === race.id && r.pilot_id === myPilot.id);
+      if (res && res.status === 'normal' && res.position === 1) racesWon++;
+    });
+  });
+
+  const totalChampsRun = [...bundle.champsRun].length;
+  const presentismGlobal = { participated: champResults.length, total: totalChampsRun };
+
+  const presentismByAnnual = bundle.annuals.map(annual => {
+    const champIdsInAnnual = bundle.links.filter(l => l.annual_id === annual.id).map(l => l.championship_id)
+      .filter(cid => bundle.champsRun.has(cid));
+    const participated = champIdsInAnnual.filter(cid => myChampIds.has(cid)).length;
+    return { annualTitle: annual.title, participated, total: champIdsInAnnual.length };
+  }).filter(a => a.total > 0);
+
+  return {
+    person,
+    champResults: champResults.sort((a,b) => a.champ.name.localeCompare(b.champ.name)),
+    champsPlayed: champResults.length,
+    bestPos, worstPos, avgPos,
+    gold, silver, bronze, podiums,
+    wins: gold, racesWon,
+    presentismGlobal, presentismByAnnual
+  };
 }
