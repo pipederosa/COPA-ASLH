@@ -2469,6 +2469,7 @@ async function renderAnnualDetailFull(annual) {
   const container = document.getElementById('annual-view-container');
   if (!container) return;
   container.innerHTML = '<div class="loading-state">Cargando tabla anual...</div>';
+  await loadPeoplePhotoMap();
 
   const summary = await getAnnualSummary(annual);
   if (!summary.ranked || !summary.ranked.length) {
@@ -2496,7 +2497,7 @@ async function renderAnnualDetailFull(annual) {
     }).join('');
     return `<tr>
       <td><span class="pos-medal ${posClass}">${posLabel}</span></td>
-      <td>${esc(p.name)}</td>
+      <td style="white-space:nowrap">${avatarHTML(p.name)}${esc(p.name)}</td>
       ${champCells}
       <td style="font-weight:600;color:var(--sea)">${p.total}</td>
     </tr>`;
