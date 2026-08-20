@@ -18,8 +18,9 @@
       <span class="logo-icon">⛵</span>
       <span class="logo-text">COPA ASLH</span>
     </div>
-    <nav class="header-nav">
+        <nav class="header-nav">
       <button class="nav-btn active" onclick="showView('home')">Campeonatos</button>
+      <button class="nav-btn" onclick="showView('people')">Participantes</button>
       <div id="auth-area">
         <button class="nav-btn nav-admin" id="btn-login" onclick="showModal('modal-login')">Admin</button>
         <button class="nav-btn nav-logout" id="btn-logout" onclick="logout()" style="display:none">Salir</button>
@@ -70,6 +71,20 @@
     <p style="font-size:13px;color:var(--text-mid);margin-bottom:1rem">Campeonatos sin anual asignado</p>
     <div id="champ-grid" class="champ-grid">
       <div class="loading-state">Cargando campeonatos...</div>
+    </div>
+  </div>
+
+  <!-- PEOPLE: Módulo de participantes -->
+  <div id="view-people" class="view">
+    <div class="view-header">
+      <div>
+        <h1 class="view-title">Participantes</h1>
+        <p class="view-subtitle">Ficha de cada participante y su historial</p>
+      </div>
+      <button id="btn-new-person" class="btn btn-accent" onclick="showPersonModal()" style="display:none">+ Nuevo participante</button>
+    </div>
+    <div id="people-container">
+      <div class="loading-state">Cargando participantes...</div>
     </div>
   </div>
   
@@ -586,6 +601,52 @@
     </div>
   </div>
 </div>  
+
+<!-- Modal persona -->
+<div id="modal-person" class="modal-overlay" onclick="closeModalOutside(event,'modal-person')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2 id="modal-person-title">Nuevo participante</h2>
+      <button class="modal-close" onclick="closeModal('modal-person')">x</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">
+        <div style="text-align:center">
+          <div id="person-photo-preview" style="width:90px;height:90px;border-radius:50%;background:var(--foam);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:28px;color:var(--sea)">👤</div>
+          <input type="file" id="person-photo" accept="image/*" style="font-size:11px;margin-top:6px;width:120px" onchange="previewPersonPhoto()">
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div class="field">
+            <label>Nombre</label>
+            <input type="text" id="person-name" placeholder="Nombre completo">
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label>Edad</label>
+              <input type="number" id="person-age" min="0" placeholder="Ej: 24">
+            </div>
+            <div class="field">
+              <label>Altura (cm)</label>
+              <input type="number" id="person-height" min="0" placeholder="Ej: 178">
+            </div>
+          </div>
+          <div class="field">
+            <label>Peso (kg)</label>
+            <input type="number" id="person-weight" min="0" step="0.1" placeholder="Ej: 72">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <input type="text" id="person-notes" placeholder="Ej: Timonel, categoría Laser">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-accent w-full" onclick="savePerson()">Guardar</button>
+        <button class="btn btn-danger" id="person-delete-btn" onclick="deletePerson()" style="display:none;white-space:nowrap">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
   
 <!-- Toast -->
 <div id="toast" class="toast"></div>
