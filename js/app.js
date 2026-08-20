@@ -2736,10 +2736,13 @@ async function deleteSponsor(id, path) {
 let editingPersonId = null;
 let personPhotoBlob = null;
 
+let allPeopleCards = [];
+
 async function loadPeople() {
   document.getElementById('btn-new-person').style.display = currentUser ? '' : 'none';
   const container = document.getElementById('people-container');
   container.innerHTML = '<div class="loading-state">Cargando participantes...</div>';
+  await loadPeoplePhotoMap();
 
   const { data: people } = await db.from('people').select('*').order('name', { ascending: true });
   if (!people || !people.length) {
@@ -2747,15 +2750,34 @@ async function loadPeople() {
     return;
   }
 
-  // Para cada persona, buscar en qué campeonatos participó (por person_id o por nombre)
   const cards = await Promise.all(people.map(async person => {
     const history = await getPersonHistory(person);
     return { person, history };
   }));
 
+  allPeopleCards = cards;
+  renderPeopleGrid(cards);
+}
+
+function renderPeopleGrid(cards) {
+  const container = document.getElementById('people-container');
+  if (!cards.length) {
+    container.innerHTML = '<div class="empty-state"><p>No se encontraron participantes.</p></div>';
+    return;
+  }
   container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
     ${cards.map(({person, history}) => renderPersonCard(person, history)).join('')}
   </div>`;
+}
+
+function filterPeople() {
+  const q = document.getElementById('people-search').value.trim().toLowerCase();
+  if (!q) { renderPeopleGrid(allPeopleCards); return; }
+  const filtered = allPeopleCards.filter(({person}) =>
+    (person.name || '').toLowerCase().includes(q) ||
+    (person.full_name || '').toLowerCase().includes(q)
+  );
+  renderPeopleGrid(filtered);
 }
 
 function personPhotoUrl(person) {
@@ -2786,7 +2808,8 @@ function renderPersonCard(person, history) {
       ${avatar}
       <div style="flex:1;min-width:0">
         <div style="font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--navy)">${esc(person.name)}</div>
-        ${stats.length ? `<div style="font-size:12px;color:var(--text-mid)">${stats.join(' · ')}</div>` : ''}
+        ${person.full_name ? `<div style="font-size:12px;color:var(--text-mid);font-weight:500">${esc(person.full_name)}</div>` : ''}
+        ${stats.length ? `<div style="font-size:12px;color:var(--text-light)">${stats.join(' · ')}</div>` : ''}
         ${person.notes ? `<div style="font-size:12px;color:var(--text-light)">${esc(person.notes)}</div>` : ''}
       </div>
       ${currentUser ? `<button class="btn btn-sm" onclick="showPersonModal('${person.id}')" style="font-size:11px">Editar</button>` : ''}
@@ -2836,6 +2859,7 @@ function showPersonModal(personId) {
       if (!p) return;
       document.getElementById('modal-person-title').textContent = 'Editar participante';
       document.getElementById('person-name').value = p.name || '';
+      document.getElementById('person-fullname').value = p.full_name || '';
       document.getElementById('person-age').value = p.age || '';
       document.getElementById('person-height').value = p.height_cm || '';
       document.getElementById('person-weight').value = p.weight_kg || '';
@@ -2846,7 +2870,7 @@ function showPersonModal(personId) {
     });
   } else {
     document.getElementById('modal-person-title').textContent = 'Nuevo participante';
-    ['person-name','person-age','person-height','person-weight','person-notes'].forEach(id => document.getElementById(id).value = '');
+    ['person-name','person-fullname','person-age','person-height','person-weight','person-notes'].forEach(id => document.getElementById(id).value = '');
     preview.innerHTML = '👤';
     document.getElementById('person-delete-btn').style.display = 'none';
   }
@@ -2884,7 +2908,8 @@ async function savePerson() {
     photoPath = path;
   }
 
-  const payload = { name, age, height_cm: height, weight_kg: weight, notes };
+  const fullName = document.getElementById('person-fullname').value.trim() || null;
+  const payload = { name, full_name: fullName, age, height_cm: height, weight_kg: weight, notes };
   if (photoPath !== undefined) payload.photo_path = photoPath;
 
   let error;
