@@ -89,13 +89,19 @@ async function loadChampionships() {
     .select('*')
     .order('created_at', { ascending: false });
   if (error) { grid.innerHTML = '<div class="loading-state">Error al cargar.</div>'; return; }
-  if (!data.length) {
-    grid.innerHTML = '<div class="empty-state"><p>No hay campeonatos aún.</p></div>';
+
+  // Filtrar los que ya están en algún anual
+  const { data: assigned } = await db.from('annual_championships').select('championship_id');
+  const assignedIds = new Set((assigned || []).map(a => a.championship_id));
+  const unassigned = (data || []).filter(c => !assignedIds.has(c.id));
+
+  if (!unassigned.length) {
+    grid.innerHTML = '<div class="empty-state"><p>No hay campeonatos futuros.</p></div>';
     return;
   }
 
-  // Fetch top 3 for each championship
-  const champCards = await Promise.all(data.map(async c => {
+    // Fetch top 3 for each championship
+  const champCards = await Promise.all(unassigned.map(async c => {
     const top3 = await getTop3ForChamp(c);
     return { champ: c, top3 };
   }));
@@ -2505,7 +2511,29 @@ async function renderAnnualDetailFull(annual) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
+        <div style="font-size:11px;color:var(--text-light);margin-top:.5rem">
       * No participó — penalidad: ${absentPenalty} (total inscriptos únicos del anual)
+    </div>
+    <div style="margin-top:2rem">
+      <h3 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--navy);margin-bottom:.75rem">Campeonatos de este anual</h3>
+      <div class="champ-grid">${renderChampCardsHTML(allChamps)}</div>
     </div>`;
+}
+
+function renderChampCardsHTML(champs) {
+  if (!champs || !champs.length) return '<div class="empty-state" style="padding:1.5rem 0"><p>No hay campeonatos.</p></div>';
+  const medals = ['🥇','🥈','🥉'];
+  return champs.map(c => `
+    <div class="champ-card" onclick="openChampionship('${c.id}')">
+      <div class="champ-card-name">${esc(c.name)}</div>
+      ${c.event_date ? `<div style="font-size:12px;color:var(--accent-dark);font-weight:500;margin-bottom:2px">${new Date(c.event_date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</div>` : ''}
+      ${c.description ? `<div class="champ-card-desc">${esc(c.description)}</div>` : ''}
+      <div class="champ-card-meta">
+        <span class="meta-chip">${c.total_races} regatas</span>
+        ${c.total_discards > 0 ? `<span class="meta-chip">${c.total_discards} descarte(s)</span>` : ''}
+      </div>
+      ${currentUser ? `<div style="margin-top:10px;display:flex;justify-content:flex-end" onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-danger" onclick="deleteChampionship('${c.id}','${esc(c.name).replace(/'/g,"\\'")}')">Eliminar campeonato</button>
+      </div>` : ''}
+    </div>`).join('');
 }
