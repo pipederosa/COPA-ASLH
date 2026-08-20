@@ -574,3 +574,24 @@ td[title]:hover { outline: 1px dashed rgba(184,112,0,0.3); }
 .annual-table tr:nth-child(even) td { background: rgba(232,244,248,0.25); }
 .annual-table tr:hover td { background: var(--foam); }
 .annual-pts-absent { color: var(--text-light); font-style: italic; font-size: 12px; }
+
+
+@keyframes sponsor-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+#sponsors-track img {
+  height: 50px;
+  width: auto;
+  object-fit: contain;
+  filter: grayscale(30%);
+  opacity: 0.85;
+  transition: all .2s;
+}
+#sponsors-track img:hover {
+  filter: grayscale(0%);
+  opacity: 1;
+}
+#sponsors-bar:hover #sponsors-track {
+  animation-play-state: paused;
+}
