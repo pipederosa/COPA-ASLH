@@ -2967,13 +2967,24 @@ function avatarHTML(name) {
 
 // Calcula todas las estadísticas de una persona
 async function computePersonStats(person) {
+  
   // 1. Traer todos los campeonatos y anuales
-  const { data: allChamps } = await db.from('championships').select('*');
+  const { data: allChampsRaw } = await db.from('championships').select('*');
   const { data: annuals } = await db.from('annual_config').select('*').order('sort_order');
   const { data: annualLinks } = await db.from('annual_championships').select('*');
   const { data: allPilotsData } = await db.from('pilots').select('championship_id, name, person_id');
 
-  if (!allChamps) return null;
+  if (!allChampsRaw) return null;
+
+  // Filtrar solo campeonatos que ya se corrieron (tienen al menos una regata con resultados)
+  const { data: racesWithResults } = await db.from('races').select('championship_id, id');
+  const { data: anyResults } = await db.from('results').select('race_id');
+  const racesWithResultsSet = new Set((anyResults || []).map(r => r.race_id));
+  const champsRun = new Set();
+  (racesWithResults || []).forEach(race => {
+    if (racesWithResultsSet.has(race.id)) champsRun.add(race.championship_id);
+  });
+  const allChamps = allChampsRaw.filter(c => champsRun.has(c.id));
 
   // 2. Determinar en qué campeonatos participó esta persona
   const myChampIds = new Set();
