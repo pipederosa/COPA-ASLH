@@ -35,17 +35,6 @@
 <main class="main-content">
 
 
-    <!-- Annual standings -->
-    <div id="annual-section" style="display:none;margin-bottom:2rem">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
-        <div>
-          <h2 id="annual-title" style="font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--navy);letter-spacing:1px"></h2>
-          <p style="font-size:13px;color:var(--text-mid)">Clasificación acumulada de campeonatos</p>
-        </div>
-      </div>
-      <div id="annual-standings"></div>
-    </div>
-
     <!-- ANNUAL: Vista de un anual -->
   <div id="view-annual" class="view">
     <div class="view-header">
@@ -72,13 +61,16 @@
         <button id="btn-new-champ" class="btn btn-accent" onclick="showModal('modal-champ')" style="display:none">+ Nuevo campeonato</button>
       </div>
     </div>
+        <!-- Anuales -->
+    <div id="annual-section" style="display:none;margin-bottom:2rem">
+      <div id="annual-standings"></div>
+    </div>
+
     <div id="champ-grid" class="champ-grid">
       <div class="loading-state">Cargando campeonatos...</div>
     </div>
-
-
   </div>
-
+  
   <!-- CHAMPIONSHIP: Vista de un campeonato -->
   <div id="view-champ" class="view">
     <div class="view-header">
