@@ -606,7 +606,8 @@ function computeScores() {
       .reduce((a, adj) => a + adj.points, 0);
     const net = raceNet + adjTotal;
 
-    return { pilot, pts, gross, net, discarded, adjTotal };
+    const posCounts = countPositionsForTiebreak(pts, discarded);
+    return { pilot, pts, gross, net, discarded, adjTotal, posCounts };
   });
 
   // Medal Race para desempate: obtener la posición de cada piloto en la Medal Race
@@ -666,7 +667,11 @@ function setResultsView(mode) {
 
 function renderNormalTableHTML(maxRaceLimit) {
   const { pilotData, loadedRaceNums, activeDiscards, hasMedalRace } = computeScores();
-  const sorted = [...pilotData].sort((a,b) => a.net - b.net || a.medalPos - b.medalPos || a.gross - b.gross);
+  const sorted = [...pilotData].sort((a,b) =>
+    a.net - b.net
+    || a.medalPos - b.medalPos
+    || compareByPositionCounts(a.posCounts, b.posCounts)
+  );
 
   // Filtrar regatas si hay límite (medal series congela hasta cierta regata)
   const shownRaceNums = maxRaceLimit
@@ -3247,4 +3252,38 @@ function presentismColor(pct) {
   if (pct >= 70) return '#166534';   // verde
   if (pct >= 50) return '#B08800';   // amarillo/dorado
   return '#991B1B';                   // rojo
+}
+
+// ===== DESEMPATE ESTILO RRS A8 =====
+// Devuelve un array con la cantidad de 1ros, 2dos, 3ros... contando solo regatas NO descartadas.
+// pilotPts: array de { race, result, pts } o { race, pts } del piloto
+// discardedIds: Set o array con los race.id descartados
+function countPositionsForTiebreak(pilotPts, discardedIds) {
+  const counts = {}; // posición -> cantidad
+  pilotPts.forEach(p => {
+    if (discardedIds.includes(p.race.id)) return; // no contar descartadas
+    // La "posición" para desempate es el puntaje de la regata (pos de llegada).
+    // Para regatas por equipos o penalizaciones usamos los puntos como proxy.
+    const pos = p.result && p.result.status && p.result.status !== 'normal'
+      ? p.pts   // penalizados: usar sus puntos
+      : (p.result ? p.result.position : p.pts);
+    if (pos != null) counts[pos] = (counts[pos] || 0) + 1;
+  });
+  return counts;
+}
+
+// Compara dos pilotos por conteo de posiciones (más 1ros gana, luego más 2dos, etc.)
+// Devuelve negativo si A va antes (mejor), positivo si B va antes.
+function compareByPositionCounts(countsA, countsB) {
+  const maxPos = Math.max(
+    0,
+    ...Object.keys(countsA).map(Number),
+    ...Object.keys(countsB).map(Number)
+  );
+  for (let pos = 1; pos <= maxPos; pos++) {
+    const a = countsA[pos] || 0;
+    const b = countsB[pos] || 0;
+    if (a !== b) return b - a; // más cantidad de esa posición gana (va primero)
+  }
+  return 0; // empate total
 }
