@@ -175,9 +175,19 @@ async function getTop3ForChamp(champ) {
         const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
         if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
       }
-      return { name: pilot.name, net: raceNet + adjTotal, gross, medalPos };
+      const ptsForCount = pts.map(p => ({
+        race: p.race,
+        result: results.find(r => r.race_id === p.race.id && r.pilot_id === pilot.id),
+        pts: p.pts
+      }));
+      const posCounts = countPositionsForTiebreak(ptsForCount, discarded);
+      return { name: pilot.name, net: raceNet + adjTotal, gross, medalPos, posCounts };
     });
-    return scores.sort((a,b)=>a.net-b.net || a.medalPos-b.medalPos || a.gross-b.gross).slice(0,3);
+    return scores.sort((a,b) =>
+      a.net - b.net
+      || a.medalPos - b.medalPos
+      || compareByPositionCounts(a.posCounts, b.posCounts)
+    ).slice(0,3);
   } catch(e) { return []; }
 }
 
@@ -2467,8 +2477,19 @@ async function getChampFinalRanking(champ) {
         const mr = results.find(r => r.race_id === medalRace.id && r.pilot_id === pilot.id);
         if (mr && !PENALTIES.includes(mr.status)) medalPos = mr.position;
       }
-      return { pilot, net: raceNet + adjTotal, gross, medalPos };
-    }).sort((a,b)=>a.net-b.net || a.medalPos-b.medalPos || a.gross-b.gross);
+      // Conteo de posiciones para desempate (regatas no descartadas)
+      const ptsForCount = pts.map(p => ({
+        race: p.race,
+        result: results.find(r => r.race_id === p.race.id && r.pilot_id === pilot.id),
+        pts: p.pts
+      }));
+      const posCounts = countPositionsForTiebreak(ptsForCount, discarded);
+      return { pilot, net: raceNet + adjTotal, gross, medalPos, posCounts };
+    }).sort((a,b) =>
+      a.net - b.net
+      || a.medalPos - b.medalPos
+      || compareByPositionCounts(a.posCounts, b.posCounts)
+    );
   };
 
   if (!ms) {
