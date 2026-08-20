@@ -83,6 +83,9 @@
       </div>
       <button id="btn-new-person" class="btn btn-accent" onclick="showPersonModal()" style="display:none">+ Nuevo participante</button>
     </div>
+    <div style="margin-bottom:1rem">
+      <input type="text" id="people-search" placeholder="Buscar por nombre o nombre completo..." oninput="filterPeople()" style="max-width:400px">
+    </div>
     <div id="people-container">
       <div class="loading-state">Cargando participantes...</div>
     </div>
