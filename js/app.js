@@ -2814,13 +2814,36 @@ async function loadPeople() {
     return;
   }
 
-  const cards = await Promise.all(people.map(async person => {
-    const history = await getPersonHistory(person);
+  // Cargar todo una sola vez y calcular rankings en memoria
+  const bundle = await loadStatsBundle();
+
+  const cards = people.map(person => {
+    const history = getPersonHistoryFromBundle(person, bundle);
     return { person, history };
-  }));
+  });
 
   allPeopleCards = cards;
   renderPeopleGrid(cards);
+}
+
+// Historial de campeonatos de una persona usando el bundle (sin consultas)
+function getPersonHistoryFromBundle(person, bundle) {
+  const myChampIds = new Set();
+  bundle.pilots.forEach(p => {
+    if (p.person_id === person.id) myChampIds.add(p.championship_id);
+    else if (!p.person_id && p.name === person.name) myChampIds.add(p.championship_id);
+  });
+
+  const history = [];
+  for (const champId of myChampIds) {
+    if (!bundle.champsRun.has(champId)) continue;
+    const champ = bundle.champs.find(c => c.id === champId);
+    const ranking = bundle.rankings[champId];
+    if (!champ || !ranking) continue;
+    const pos = ranking.findIndex(r => r.name === person.name) + 1;
+    history.push({ champName: champ.name, position: pos > 0 ? pos : '—' });
+  }
+  return history;
 }
 
 function renderPeopleGrid(cards) {
@@ -3051,42 +3074,7 @@ async function loadStatsTable() {
     return;
   }
 
-  // Cargar TODO de una vez
-  const [champsRes, annualsRes, linksRes, pilotsRes, racesRes, resultsRes, adjRes, msRes] = await Promise.all([
-    db.from('championships').select('*'),
-    db.from('annual_config').select('*').order('sort_order'),
-    db.from('annual_championships').select('*'),
-    db.from('pilots').select('*'),
-    db.from('races').select('*'),
-    db.from('results').select('*'),
-    db.from('point_adjustments').select('*'),
-    db.from('medal_series').select('*').eq('active', true)
-  ]);
-
-  const bundle = {
-    champs: champsRes.data || [],
-    annuals: annualsRes.data || [],
-    links: linksRes.data || [],
-    pilots: pilotsRes.data || [],
-    races: racesRes.data || [],
-    results: resultsRes.data || [],
-    adjs: adjRes.data || [],
-    medalSeries: msRes.data || []
-  };
-
-  // Campeonatos que ya se corrieron (tienen resultados)
-  const raceIdsWithResults = new Set(bundle.results.map(r => r.race_id));
-  const champsRun = new Set();
-  bundle.races.forEach(race => { if (raceIdsWithResults.has(race.id)) champsRun.add(race.championship_id); });
-  bundle.champsRun = champsRun;
-
-  // Pre-calcular el ranking final de cada campeonato corrido (una sola vez)
-  bundle.rankings = {};
-  for (const champ of bundle.champs) {
-    if (!champsRun.has(champ.id)) continue;
-    bundle.rankings[champ.id] = computeChampRankingFromBundle(champ, bundle);
-  }
-
+  const bundle = await loadStatsBundle();
   allPersonStats = people.map(person => computePersonStatsFromBundle(person, bundle)).filter(Boolean);
   renderStatsTable();
 }
@@ -3468,4 +3456,42 @@ function computePersonStatsFromBundle(person, bundle) {
     wins: gold, racesWon,
     presentismGlobal, presentismByAnnual
   };
+}
+
+// Carga todos los datos de una vez y pre-calcula rankings (reutilizable por Fichas y Estadísticas)
+async function loadStatsBundle() {
+  const [champsRes, annualsRes, linksRes, pilotsRes, racesRes, resultsRes, adjRes, msRes] = await Promise.all([
+    db.from('championships').select('*'),
+    db.from('annual_config').select('*').order('sort_order'),
+    db.from('annual_championships').select('*'),
+    db.from('pilots').select('*'),
+    db.from('races').select('*'),
+    db.from('results').select('*'),
+    db.from('point_adjustments').select('*'),
+    db.from('medal_series').select('*').eq('active', true)
+  ]);
+
+  const bundle = {
+    champs: champsRes.data || [],
+    annuals: annualsRes.data || [],
+    links: linksRes.data || [],
+    pilots: pilotsRes.data || [],
+    races: racesRes.data || [],
+    results: resultsRes.data || [],
+    adjs: adjRes.data || [],
+    medalSeries: msRes.data || []
+  };
+
+  const raceIdsWithResults = new Set(bundle.results.map(r => r.race_id));
+  const champsRun = new Set();
+  bundle.races.forEach(race => { if (raceIdsWithResults.has(race.id)) champsRun.add(race.championship_id); });
+  bundle.champsRun = champsRun;
+
+  bundle.rankings = {};
+  for (const champ of bundle.champs) {
+    if (!champsRun.has(champ.id)) continue;
+    bundle.rankings[champ.id] = computeChampRankingFromBundle(champ, bundle);
+  }
+
+  return bundle;
 }
