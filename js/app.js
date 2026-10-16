@@ -1,5 +1,5 @@
 // ============================================================
-//  REGATAS NÁUTICAS — Lógica principal
+//  REGATAS NÁUTICAS — Lógica principalF
 // ============================================================
 
 const PENALTIES = ['DNS','DNF','OCS','DSQ','RET'];
@@ -332,19 +332,51 @@ async function addPilot() {
   const personId = document.getElementById('pilot-person-select').value || null;
   if (!name) return;
   const sort = allPilots.length;
-  const { error } = await db.from('pilots').insert({
+  const { data: newPilot, error } = await db.from('pilots').insert({
     championship_id: currentChampId, name, sail_number: sail || null, sort_order: sort, person_id: personId
-  });
+  }).select().single();
   if (error) { showToast('Error al agregar piloto', 'error'); return; }
+
+  // Cargar DNS en todas las regatas que ya tienen resultados cargados
+  const racesWithResults = allRaces.filter(race =>
+    allResults.some(r => r.race_id === race.id)
+  );
+  if (racesWithResults.length) {
+    // Nuevo N+1 contando al participante recién agregado
+    const newPenaltyPts = allPilots.length + 1;
+    const raceIdsWithResults = racesWithResults.map(r => r.id);
+
+    // 1) DNS para el nuevo en cada regata corrida
+    const dnsEntries = racesWithResults.map(race => ({
+      race_id: race.id,
+      pilot_id: newPilot.id,
+      status: 'DNS',
+      position: null,
+      points: newPenaltyPts
+    }));
+
+    // 2) Recalcular los puntos de TODOS los penalizados existentes en esas regatas al nuevo N+1
+    const updatedPenalized = allResults
+      .filter(r => raceIdsWithResults.includes(r.race_id) && PENALTIES.includes(r.status))
+      .map(r => ({
+        race_id: r.race_id,
+        pilot_id: r.pilot_id,
+        status: r.status,
+        position: r.position,
+        points: newPenaltyPts
+      }));
+
+    const { error: upErr } = await db.from('results').upsert([...dnsEntries, ...updatedPenalized], { onConflict: 'race_id,pilot_id' });
+    if (upErr) { showToast('Participante agregado, pero error al actualizar penalizaciones', 'error'); }
+  }
   document.getElementById('pilot-name-input').value = '';
   document.getElementById('pilot-sail-input').value = '';
   document.getElementById('pilot-person-select').value = '';
   await loadChampData();
   await populatePersonSelect();
   renderPilotsList();
-  showToast(`${name} agregado`, 'success');
+  showToast(racesWithResults.length ? `${name} agregado con DNS en ${racesWithResults.length} regata(s)` : `${name} agregado`, 'success');
 }
-
 async function deletePilot(id) {
   if (!confirm('¿Eliminar este participante?')) return;
   const { error } = await db.from('pilots').delete().eq('id', id);
