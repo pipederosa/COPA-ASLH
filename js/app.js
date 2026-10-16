@@ -716,11 +716,12 @@ function renderNormalTableHTML(maxRaceLimit) {
       const isDiscard = p.discarded.includes(race.id);
       const st = raceData.result.status;
       let content;
-      if (st === 'DNS') content = `<span class="cell-dns">DNS</span>`;
-      else if (st === 'DNF') content = `<span class="cell-dnf">DNF</span>`;
-      else if (st === 'OCS') content = `<span class="cell-ocs">OCS</span>`;
-      else if (st === 'DSQ') content = `<span class="cell-dns">DSQ</span>`;
-      else if (st === 'RET') content = `<span class="cell-dnf">RET</span>`;
+      if (PENALTIES.includes(st)) {
+        const cls = (st === 'DNF' || st === 'RET') ? 'cell-dnf' : 'cell-ocs' === st ? 'cell-ocs' : 'cell-dns';
+        const penClass = st === 'OCS' ? 'cell-ocs' : (st === 'DNF' || st === 'RET') ? 'cell-dnf' : 'cell-dns';
+        const penPts = raceData.result.points;
+        content = `<span style="position:relative;display:inline-block"><span class="${penClass}">${st}</span><sup style="position:absolute;top:-8px;right:-10px;font-size:8px;font-weight:600;color:var(--text-light)">${penPts}</sup></span>`;
+      }      
       else if (race.is_team_race) {
         const team = raceData.result.team || '';
         const pts = raceData.result.points;
@@ -2289,12 +2290,11 @@ function renderMedalSeriesTableHTML() {
       if (!raceData) return `<td style="color:var(--text-light)">—</td>`;
       const st = raceData.status;
       let content;
-      if (st === 'DNS') content = `<span class="cell-dns">DNS</span>`;
-      else if (st === 'DNF') content = `<span class="cell-dnf">DNF</span>`;
-      else if (st === 'OCS') content = `<span class="cell-ocs">OCS</span>`;
-      else if (st === 'DSQ') content = `<span class="cell-dns">DSQ</span>`;
-      else if (st === 'RET') content = `<span class="cell-dnf">RET</span>`;
-      else content = raceData.position;
+      if (PENALTIES.includes(st)) {
+        const penClass = st === 'OCS' ? 'cell-ocs' : (st === 'DNF' || st === 'RET') ? 'cell-dnf' : 'cell-dns';
+        content = `<span style="position:relative;display:inline-block"><span class="${penClass}">${st}</span><sup style="position:absolute;top:-8px;right:-10px;font-size:8px;font-weight:600;color:var(--text-light)">${raceData.pts}</sup></span>`;
+      }
+      else content = raceData.pts;
       return `<td>${content}</td>`;
     }).join('');
 
