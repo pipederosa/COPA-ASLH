@@ -948,7 +948,7 @@ function getRankingBeforeRace(raceNum) {
   const maxRaceBefore = Math.max(...racesBeforeThis.map(r => r.race_number));
   const activeDiscards = getActiveDiscards(maxRaceBefore, currentChampData);
 
-  const pilotScores = allPilots.map(pilot => {
+    const pilotScores = allPilots.map(pilot => {
     const pts = [];
     for (const race of racesBeforeThis) {
       const result = allResults.find(r => r.race_id === race.id && r.pilot_id === pilot.id);
@@ -967,10 +967,14 @@ function getRankingBeforeRace(raceNum) {
     const adjTotal = allAdjustments
       .filter(a => a.pilot_id === pilot.id)
       .reduce((a, adj) => a + adj.points, 0);
-    return { pilot, net: raceNet + adjTotal };
+    const posCounts = countPositionsForTiebreak(pts, discarded);
+    return { pilot, net: raceNet + adjTotal, posCounts };
   });
 
-  return pilotScores.sort((a, b) => a.net - b.net);
+  return pilotScores.sort((a, b) =>
+    a.net - b.net
+    || compareByPositionCounts(a.posCounts, b.posCounts)
+  );
 }
 
 async function showTeamRaceModal() {
