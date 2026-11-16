@@ -3429,18 +3429,29 @@ function computePersonStatsFromBundle(person, bundle) {
   const bronze = champResults.filter(r => r.position === 3).length;
   const podiums = gold + silver + bronze;
 
-  // Regatas ganadas
+  // Regatas ganadas (individuales) y team races ganadas
   let racesWon = 0;
+  let teamRacesWon = 0;
+  let teamRacesPlayed = 0;
   champResults.forEach(({ champ }) => {
     const myPilot = bundle.pilots.find(pl => pl.championship_id === champ.id &&
       (pl.person_id === person.id || (!pl.person_id && pl.name === person.name)));
     if (!myPilot) return;
-    bundle.races.filter(r => r.championship_id === champ.id && !r.is_team_race).forEach(race => {
+    bundle.races.filter(r => r.championship_id === champ.id).forEach(race => {
       const res = bundle.results.find(r => r.race_id === race.id && r.pilot_id === myPilot.id);
-      if (res && res.status === 'normal' && res.position === 1) racesWon++;
+      if (!res) return;
+      if (race.is_team_race) {
+        if (!res.team) return; // participante impar, no compitió por equipo
+        teamRacesPlayed++;
+        const winPts = race.team_win_points != null ? Number(race.team_win_points) : 1;
+        const losePts = race.team_lose_points != null ? Number(race.team_lose_points) : 3;
+        if (winPts !== losePts && Number(res.points) === winPts) teamRacesWon++;
+      } else if (res.status === 'normal' && res.position === 1) {
+        racesWon++;
+      }
     });
   });
-
+  
   const totalChampsRun = [...bundle.champsRun].length;
   const presentismGlobal = { participated: champResults.length, total: totalChampsRun };
 
@@ -3457,7 +3468,7 @@ function computePersonStatsFromBundle(person, bundle) {
     champsPlayed: champResults.length,
     bestPos, worstPos, avgPos,
     gold, silver, bronze, podiums,
-    wins: gold, racesWon,
+    wins: gold, racesWon, teamRacesWon, teamRacesPlayed,
     presentismGlobal, presentismByAnnual
   };
 }
