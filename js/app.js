@@ -205,7 +205,6 @@ async function openChampionship(id) {
   document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===0));
   await loadChampData();
   renderResultsTable();
-  document.getElementById('btn-ms-adjustments').style.display = activeMedalSeries ? '' : 'none';
   updateHash();
 }
 
@@ -223,6 +222,8 @@ async function loadChampData() {
   allAdjustments = adjRes.data || [];
   activeMedalSeries = msRes.data || null;
   await loadPeoplePhotoMap();
+  const msAdjBtn = document.getElementById('btn-ms-adjustments');
+  if (msAdjBtn) msAdjBtn.style.display = activeMedalSeries ? '' : 'none';
 }
 
 // ===== CHAMPIONSHIP FORM =====
@@ -646,7 +647,7 @@ function computeScores() {
       .filter(p => !discarded.includes(p.race.id))
       .reduce((a, p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
     const adjTotal = allAdjustments
-      .filter(a => a.pilot_id === pilot.id)
+      .filter(a => a.pilot_id === pilot.id && !a.is_medal_series)
       .reduce((a, adj) => a + adj.points, 0);
     const net = raceNet + adjTotal;
 
@@ -965,7 +966,7 @@ function getRankingBeforeRace(raceNum) {
     const raceNet = pts.filter(p => !discarded.includes(p.race.id))
       .reduce((a, p) => a + (p.race.is_double ? p.pts*2 : p.pts), 0);
     const adjTotal = allAdjustments
-      .filter(a => a.pilot_id === pilot.id)
+      .filter(a => a.pilot_id === pilot.id && !a.is_medal_series)
       .reduce((a, adj) => a + adj.points, 0);
     const posCounts = countPositionsForTiebreak(pts, discarded);
     return { pilot, net: raceNet + adjTotal, posCounts };
@@ -1560,10 +1561,11 @@ function showAdjustmentsSummary() {
   const existing = document.getElementById('adj-summary-popup');
   if (existing) { existing.remove(); return; }
 
-  if (!allAdjustments.length) { showToast('No hay ajustes de puntos cargados', ''); return; }
+  const normalAdjs = allAdjustments.filter(a => !a.is_medal_series);
+  if (!normalAdjs.length) { showToast('No hay ajustes de puntos cargados', ''); return; }
 
   const grouped = {};
-  allAdjustments.forEach(a => {
+  normalAdjs.forEach(a => {
     const pilot = allPilots.find(p => p.id === a.pilot_id);
     const name = pilot ? pilot.name : '?';
     if (!grouped[name]) grouped[name] = [];
