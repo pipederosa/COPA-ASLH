@@ -3119,6 +3119,7 @@ function renderStatsTable() {
       <td>${s.worstPos ?? '—'}</td>
       <td>${s.avgPos != null ? s.avgPos.toFixed(1) : '—'}</td>
       <td>${s.racesWon}</td>
+      <td>${s.teamRacesWon}/${s.teamRacesPlayed}</td>
       <td style="font-weight:700;color:${presentismColor(pres)}">${s.presentismGlobal.participated}/${s.presentismGlobal.total} (${pres}%)</td>
     </tr>`;
   }).join('');
@@ -3131,7 +3132,7 @@ function renderStatsTable() {
             <th>#</th><th>Participante</th>
             <th>Camp.</th><th>🥇</th><th>Podios</th>
             <th>Mejor</th><th>Peor</th><th>Prom.</th>
-            <th>Reg. gan.</th><th>Presentismo</th>
+            <th>Reg. gan.</th><th>Team gan.</th><th>Presentismo</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -3195,6 +3196,7 @@ async function showPersonStatsDetail(personId) {
       ${statBox('Victorias', s.wins)}
       ${statBox('Podios', s.podiums)}
       ${statBox('Reg. ganadas', s.racesWon)}
+      ${statBox('Team ganadas', s.teamRacesWon + '/' + s.teamRacesPlayed)}
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:1rem">
